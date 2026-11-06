@@ -92,7 +92,7 @@ class App {
     });
     $('btnUndo').onclick = () => this.undo();
     $('btnRedo').onclick = () => this.redo();
-    $('btnProjects').onclick = () => this.openProjects();
+    $('btnNew').onclick = () => { this.newProject(); toast('Started a blank project.', 'ok'); };
     $('btnSaveJson').onclick = () => this.backupJson();
     $('btnImport').onclick = () => this.pickImport();
     $('btnSketch').onclick = () => this.pickSketch();
@@ -118,6 +118,7 @@ class App {
     $('btnZoomOut').onclick = () => this.renderer.setZoom(this.store.viewport.k / 1.25);
     $('btnZoomLevel').onclick = () => this.renderer.setZoom(1);
     $('btnFit').onclick = () => this.renderer.fit(docBounds(this.store.doc, 40));
+    $('esNew').onclick = () => { this.newProject(); toast('Started a blank project.', 'ok'); };
     $('esStarter').onclick = () => this.openTemplate('starter');
     $('esTemplate').onclick = () => this.openTemplatePicker();
     $('esImport').onclick = () => this.pickImport();
