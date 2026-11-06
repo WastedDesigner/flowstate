@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en" data-ui="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlowState — Flowchart Editor</title>
+<meta name="description" content="A fast, friendly flowchart editor with live logic checks, code attachments and exports.">
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235b8cff'/%3E%3Cpath d='M9 8h14M16 8v6M8 14h16v5H8zM16 19v5' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+</head>
+<body>
+<a class="skiplink" href="#canvas">Skip to canvas</a>
+
+<header class="topbar">
+  <div class="brand" title="FlowState">
+    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M9 8h14M16 8v6M8 14h16v5H8zM16 19v5" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
+    <span>FlowState</span>
+  </div>
+
+  <label class="sr" for="projName">Project name</label>
+  <input id="projName" class="projname" type="text" placeholder="Untitled flowchart" autocomplete="off" spellcheck="false">
+
+  <div class="tbar">
+    <button class="btn icon" id="btnUndo" title="Undo (Ctrl+Z)" aria-label="Undo">&#8630;</button>
+    <button class="btn icon" id="btnRedo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">&#8631;</button>
+    <span class="sep"></span>
+    <button class="btn" id="btnProjects" title="Open project manager (Ctrl+O)">Projects</button>
+    <button class="btn" id="btnSaveJson" title="Download .json backup (Ctrl+S)">Backup</button>
+    <button class="btn" id="btnImport" title="Import a .json backup">Import</button>
+    <button class="btn" id="btnSketch" title="Turn a photo of a hand-drawn chart into editable steps">Sketch</button>
+    <button class="btn primary" id="btnExport" title="Export image or PDF (Ctrl+E)">Export</button>
+    <span class="sep"></span>
+    <button class="btn icon" id="btnShare" title="Copy a share link">&#128279;</button>
+    <button class="btn icon" id="btnUi" title="Toggle light / dark interface">&#9681;</button>
+    <button class="btn icon" id="btnHelp" title="Keyboard shortcuts (?)">?</button>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="rail rail-left" id="leftRail" aria-label="Shapes and templates">
+    <div class="rail-head">
+      <strong>Shapes</strong>
+      <button class="btn icon ghost railclose" data-close="left" title="Hide panel" aria-label="Hide shapes panel">&times;</button>
+    </div>
+    <p class="hint-note">Drag onto the canvas, or click a shape then click the canvas.</p>
+    <div id="palette" class="palette"></div>
+    <div class="rail-head"><strong>Templates</strong></div>
+    <div id="templateList" class="templates"></div>
+  </aside>
+
+  <main class="stage" id="stage">
+    <div class="stage-top">
+      <div class="group" role="group" aria-label="Tools">
+        <button class="btn tool active" data-tool="select" title="Select / move (V)">&#9655; Select</button>
+        <button class="btn tool" data-tool="pan" title="Pan (H, or hold Space)">&#10021; Pan</button>
+        <button class="btn tool" data-tool="connect" title="Connect nodes (C)">&#8594; Connect</button>
+      </div>
+      <div class="group" role="group" aria-label="Arrange">
+        <button class="btn icon" data-align="left" title="Align left">&#8676;</button>
+        <button class="btn icon" data-align="cx" title="Align horizontal centres">&#8597;</button>
+        <button class="btn icon" data-align="right" title="Align right">&#8677;</button>
+        <button class="btn icon" data-align="top" title="Align top">&#8673;</button>
+        <button class="btn icon" data-align="cy" title="Align vertical centres">&#8596;</button>
+        <button class="btn icon" data-align="bottom" title="Align bottom">&#8675;</button>
+        <button class="btn icon" data-align="dh" title="Distribute horizontally">&#8942;</button>
+        <button class="btn icon" data-align="dv" title="Distribute vertically">&#8943;</button>
+      </div>
+      <div class="group push" role="group" aria-label="Canvas options">
+        <button class="btn toggle" id="btnGrid" title="Show grid">Grid</button>
+        <button class="btn toggle" id="btnSnap" title="Snap to grid and guides">Snap</button>
+        <button class="btn toggle" id="btnHints" title="Smart hints">Hints</button>
+        <button class="btn icon" id="btnSearch" title="Search in chart (Ctrl+F)">&#9906;</button>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <svg id="canvas" tabindex="0" role="application" aria-label="Flowchart canvas. Use arrow keys to move between steps."></svg>
+      <div class="editor-layer" id="editorLayer"></div>
+
+      <div class="empty-state" id="emptyState" hidden>
+        <h2>Start your flowchart</h2>
+        <p>Drop a shape from the left, pick a template, or let FlowState lay out a starter for you.</p>
+        <div class="es-actions">
+          <button class="btn primary" id="esStarter">Insert a starter flow</button>
+          <button class="btn" id="esTemplate">Browse templates</button>
+          <button class="btn" id="esSketch">Photo of a sketch</button>
+          <button class="btn" id="esImport">Import a .json backup</button>
+        </div>
+        <ul class="es-tips">
+          <li><b>Double-click</b> empty canvas to add a step.</li>
+          <li>Hover a shape and <b>drag a dot</b> to connect it.</li>
+          <li><b>Ctrl + scroll</b> to zoom, <b>Space + drag</b> to pan.</li>
+          <li>Drop or paste a <b>photo of a sketch</b> to trace it.</li>
+        </ul>
+      </div>
+
+      <div class="searchbar" id="searchBar" hidden>
+        <input type="search" id="searchInput" placeholder="Find steps, labels or code…" aria-label="Search in chart">
+        <span id="searchCount" class="muted">0</span>
+        <button class="btn icon ghost" id="searchPrev" title="Previous (Shift+Enter)">&#8593;</button>
+        <button class="btn icon ghost" id="searchNext" title="Next (Enter)">&#8595;</button>
+        <button class="btn icon ghost" id="searchClose" title="Close (Esc)">&times;</button>
+      </div>
+
+      <div class="zoombar">
+        <button class="btn icon" id="btnZoomOut" title="Zoom out (Ctrl+-)">&minus;</button>
+        <button class="btn" id="btnZoomLevel" title="Reset zoom to 100%">100%</button>
+        <button class="btn icon" id="btnZoomIn" title="Zoom in (Ctrl++)">+</button>
+        <button class="btn" id="btnFit" title="Fit to view (Shift+1)">Fit</button>
+      </div>
+
+      <div class="railtabs" id="railTabs">
+        <button class="btn icon" data-open="left" title="Show shapes">&#9776;</button>
+        <button class="btn icon" data-open="right" title="Show properties">&#9881;</button>
+      </div>
+    </div>
+  </main>
+
+  <aside class="rail rail-right" id="rightRail" aria-label="Properties, code, checks and hints">
+    <div class="rail-head tabs" role="tablist">
+      <button class="tab active" role="tab" data-tab="design" aria-selected="true">Design</button>
+      <button class="tab" role="tab" data-tab="code" aria-selected="false">Code</button>
+      <button class="tab" role="tab" data-tab="checks" aria-selected="false">Checks <span class="pill" id="checkPill">0</span></button>
+      <button class="tab" role="tab" data-tab="hints" aria-selected="false">Hints <span class="pill" id="hintPill">0</span></button>
+      <button class="btn icon ghost railclose" data-close="right" title="Hide panel" aria-label="Hide properties panel">&times;</button>
+    </div>
+    <div class="tabpane active" id="pane-design" role="tabpanel"></div>
+    <div class="tabpane" id="pane-code" role="tabpanel"></div>
+    <div class="tabpane" id="pane-checks" role="tabpanel"></div>
+    <div class="tabpane" id="pane-hints" role="tabpanel"></div>
+  </aside>
+</div>
+
+<footer class="statusbar">
+  <span id="stCounts">0 steps · 0 connections</span>
+  <span class="dot">·</span>
+  <span id="stSel">Nothing selected</span>
+  <span class="push"></span>
+  <span id="stChecks" class="muted">Checks: —</span>
+  <span class="dot">·</span>
+  <span id="stSave" class="muted">Ready</span>
+</footer>
+
+<div id="modals"></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
+<input type="file" id="filePicker" accept="application/json,.json" class="sr">
+<input type="file" id="imgPicker" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif,image/*" class="sr">
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
