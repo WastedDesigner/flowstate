@@ -296,7 +296,7 @@ kbd{background:var(--bg3);border:1px solid var(--line2);border-bottom-width:2px;
 @media (max-width:680px){
   .brand span{display:none}
   .projname{min-width:90px}
-  #btnProjects,#btnImport,#btnShare{display:none}
+  #btnNew,#btnImport,#btnShare{display:none}
   .rail{width:min(300px,86vw)}
   .statusbar #stSel{display:none}
 }
