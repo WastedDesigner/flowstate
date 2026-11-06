@@ -118,6 +118,7 @@ class App {
     $('btnZoomOut').onclick = () => this.renderer.setZoom(this.store.viewport.k / 1.25);
     $('btnZoomLevel').onclick = () => this.renderer.setZoom(1);
     $('btnFit').onclick = () => this.renderer.fit(docBounds(this.store.doc, 40));
+    $('stDelete').onclick = () => this.deleteSelection();
     $('esNew').onclick = () => { this.newProject(); toast('Started a blank project.', 'ok'); };
     $('esStarter').onclick = () => this.openTemplate('starter');
     $('esTemplate').onclick = () => this.openTemplatePicker();
@@ -252,6 +253,9 @@ class App {
       sel = `${SHAPES[n.type].label.replace('\n', ' ')} · ${Math.round(n.w)}×${Math.round(n.h)} at ${Math.round(n.x)},${Math.round(n.y)}`;
     } else if (ns || es) sel = `${ns ? ns + ' step' + (ns === 1 ? '' : 's') : ''}${ns && es ? ' + ' : ''}${es ? es + ' connection' + (es === 1 ? '' : 's') : ''} selected`;
     document.getElementById('stSel').textContent = sel;
+    const del = document.getElementById('stDelete');
+    del.hidden = !(ns || es);
+    del.textContent = `Delete ${ns && es ? 'selection' : ns ? ns + ' step' + (ns === 1 ? '' : 's') : es + ' connection' + (es === 1 ? '' : 's')}`;
   }
 
   runValidation() {

@@ -49,6 +49,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .btn.ghost:hover{background:var(--bg3)}
 .btn.tool.active,.btn.toggle.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn.danger{color:var(--err)}
+.btn[hidden]{display:none}
 .sep{width:1px;height:22px;background:var(--line);margin:0 4px}
 
 /* ---------- topbar ---------- */
@@ -59,11 +60,11 @@ button,input,select,textarea{font:inherit;color:inherit}
 .brand{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:-.01em}
 .projname{
   background:transparent;border:1px solid transparent;border-radius:8px;padding:5px 9px;
-  min-width:160px;max-width:300px;flex:1 1 auto;font-weight:600;
+  min-width:90px;max-width:300px;flex:1 1 120px;font-weight:600;
 }
 .projname:hover{border-color:var(--line)}
 .projname:focus{background:var(--bg3);border-color:var(--accent);outline:none}
-.tbar{display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:nowrap;overflow:auto;scrollbar-width:none}
+.tbar{display:flex;align-items:center;gap:6px;margin-left:auto;flex:0 0 auto;flex-wrap:nowrap}
 .tbar::-webkit-scrollbar{display:none}
 
 /* ---------- shell ---------- */
@@ -83,7 +84,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .hint-note{margin:10px 12px 4px;color:var(--ink3);font-size:12px}
 
 /* palette */
-.palette{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:8px 12px 14px;overflow:auto}
+.palette{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:8px 12px 14px;flex:0 0 auto}
 .shape-btn{
   background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);
   padding:8px 4px 6px;display:flex;flex-direction:column;align-items:center;gap:5px;
@@ -93,7 +94,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .shape-btn.armed{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}
 .shape-btn svg{width:34px;height:24px;overflow:visible}
 .shape-btn svg *{stroke:currentColor;fill:none;stroke-width:1.6;vector-effect:non-scaling-stroke}
-.templates{padding:8px 12px 16px;overflow:auto;display:flex;flex-direction:column;gap:6px}
+.templates{padding:8px 12px 16px;overflow:auto;flex:1 1 0;min-height:0;display:flex;flex-direction:column;gap:6px}
 .tpl{
   text-align:left;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);
   padding:8px 10px;cursor:pointer;
@@ -106,9 +107,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .stage{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
 .stage-top{
   display:flex;gap:10px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);
-  background:var(--bg2);flex:0 0 auto;overflow-x:auto;scrollbar-width:none;
+  background:var(--bg2);flex:0 0 auto;flex-wrap:wrap;
 }
-.stage-top::-webkit-scrollbar{display:none}
 .group{display:flex;gap:4px;align-items:center}
 .canvas-wrap{position:relative;flex:1 1 auto;min-height:0;overflow:hidden}
 #canvas{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;background:var(--canvas-bg,#111620)}
@@ -152,14 +152,15 @@ button,input,select,textarea{font:inherit;color:inherit}
 #canvas .node{cursor:move}
 #canvas .node text{pointer-events:none;user-select:none}
 #canvas .node.dim{opacity:.32}
-#canvas .selring{fill:none;stroke:var(--accent);stroke-dasharray:4 3}
+#canvas .selring{fill:none;stroke:var(--accent);stroke-width:2.5;filter:drop-shadow(0 0 4px var(--accent))}
 #canvas .handle{fill:var(--bg2);stroke:var(--accent)}
 #canvas .port{fill:var(--bg2);stroke:var(--accent);cursor:crosshair}
 #canvas .port:hover{fill:var(--accent)}
 #canvas .porthit{fill:transparent;cursor:crosshair}
 #canvas .edge-hit{stroke:transparent;fill:none;stroke-width:14;cursor:pointer}
 #canvas .edge path.wire{fill:none;stroke-linecap:round;stroke-linejoin:round}
-#canvas .edge.sel path.wire{stroke:var(--accent)!important}
+#canvas .edge.sel path.wire{stroke:var(--accent)!important;filter:drop-shadow(0 0 4px var(--accent))}
+.statusbar #stDelete{padding:1px 10px;font-size:12px;border-color:var(--err)}
 #canvas .edge .elabel{paint-order:stroke;stroke-linejoin:round;user-select:none;pointer-events:none}
 #canvas .guide{stroke:#ff46a0;stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
 #canvas .marquee{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
@@ -283,7 +284,7 @@ kbd{background:var(--bg3);border:1px solid var(--line2);border-bottom-width:2px;
 @keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 
 /* ---------- responsive ---------- */
-@media (max-width:1180px){ :root{--rail-l:216px;--rail-r:288px} }
+@media (max-width:1180px){ :root{--rail-l:216px;--rail-r:288px} .tbar{gap:4px} .tbar .btn:not(.icon){padding-left:9px;padding-right:9px} .stage-top{gap:6px 8px;padding:6px 8px} .stage-top .group{gap:2px} .stage-top .btn{padding-left:8px;padding-right:8px} .stage-top .btn.icon{padding-left:6px;padding-right:6px} }
 @media (max-width:1000px){
   .rail{position:absolute;top:0;bottom:0;z-index:14;box-shadow:var(--sh)}
   .rail-left{left:0} .rail-right{right:0}
