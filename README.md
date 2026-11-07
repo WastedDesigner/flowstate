@@ -25,6 +25,7 @@ Then open <http://127.0.0.1:5191>.
   then click the canvas.
 - Drag the dots on a selected step to connect it. Drop on empty canvas and the next
   step is created and connected for you.
+- Illustrator-style align and distribute icons, plus **Smart align**: snaps steps whose centres are within 24 px onto shared rows and columns (selection, or everything if nothing is selected), skipping any group that would overlap.
 - Alignment guides while dragging, grid snapping (hold <kbd>Alt</kbd> to ignore it),
   marquee select, align/distribute tools, resize handles, zoom and pan.
 - Double-click to edit text in place; <kbd>Tab</kbd> moves to the next step still in

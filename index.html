@@ -57,14 +57,15 @@
         <button class="btn tool" data-tool="connect" title="Connect nodes (C)">&#8594; Connect</button>
       </div>
       <div class="group" role="group" aria-label="Arrange">
-        <button class="btn icon" data-align="left" title="Align left">&#8676;</button>
-        <button class="btn icon" data-align="cx" title="Align horizontal centres">&#8597;</button>
-        <button class="btn icon" data-align="right" title="Align right">&#8677;</button>
-        <button class="btn icon" data-align="top" title="Align top">&#8673;</button>
-        <button class="btn icon" data-align="cy" title="Align vertical centres">&#8596;</button>
-        <button class="btn icon" data-align="bottom" title="Align bottom">&#8675;</button>
-        <button class="btn icon" data-align="dh" title="Distribute horizontally">&#8942;</button>
-        <button class="btn icon" data-align="dv" title="Distribute vertically">&#8943;</button>
+        <button class="btn icon" data-align="left" title="Align left" aria-label="Align left"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 1.5v13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="4" y="3.5" width="9" height="3.5" rx="1" fill="currentColor"/><rect x="4" y="9" width="5.5" height="3.5" rx="1" fill="currentColor"/></svg></button>
+        <button class="btn icon" data-align="cx" title="Align horizontal centres" aria-label="Align horizontal centres"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 1.5v13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="3" y="3.5" width="10" height="3.5" rx="1" fill="currentColor"/><rect x="4.5" y="9" width="7" height="3.5" rx="1" fill="currentColor"/></svg></button>
+        <button class="btn icon" data-align="right" title="Align right" aria-label="Align right"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M14 1.5v13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="3" y="3.5" width="9" height="3.5" rx="1" fill="currentColor"/><rect x="6.5" y="9" width="5.5" height="3.5" rx="1" fill="currentColor"/></svg></button>
+        <button class="btn icon" data-align="top" title="Align top" aria-label="Align top"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M1.5 2h13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="3.5" y="4" width="3.5" height="9" rx="1" fill="currentColor"/><rect x="9" y="4" width="3.5" height="5.5" rx="1" fill="currentColor"/></svg></button>
+        <button class="btn icon" data-align="cy" title="Align vertical centres" aria-label="Align vertical centres"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M1.5 8h13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="3.5" y="3" width="3.5" height="10" rx="1" fill="currentColor"/><rect x="9" y="4.5" width="3.5" height="7" rx="1" fill="currentColor"/></svg></button>
+        <button class="btn icon" data-align="bottom" title="Align bottom" aria-label="Align bottom"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M1.5 14h13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="3.5" y="3" width="3.5" height="9" rx="1" fill="currentColor"/><rect x="9" y="6.5" width="3.5" height="5.5" rx="1" fill="currentColor"/></svg></button>
+        <button class="btn icon" data-align="dh" title="Distribute horizontally" aria-label="Distribute horizontally"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 1.5v13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M14 1.5v13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="5.5" y="4" width="5" height="8" rx="1" fill="currentColor"/></svg></button>
+        <button class="btn icon" data-align="dv" title="Distribute vertically" aria-label="Distribute vertically"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M1.5 2h13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M1.5 14h13" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><rect x="4" y="5.5" width="8" height="5" rx="1" fill="currentColor"/></svg></button>
+        <button class="btn" id="btnSmartAlign" title="Snap nearly-aligned steps into tidy rows and columns (selection, or everything if nothing is selected)">Smart align</button>
       </div>
       <div class="group push" role="group" aria-label="Canvas options">
         <button class="btn toggle" id="btnGrid" title="Show grid">Grid</button>

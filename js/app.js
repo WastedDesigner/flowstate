@@ -112,6 +112,7 @@ class App {
       this.clearArmed?.();
     });
     this.onToolChange = (t) => document.querySelectorAll('.btn.tool').forEach((b) => b.classList.toggle('active', b.dataset.tool === t));
+    $('btnSmartAlign').onclick = () => this.smartAlign();
     document.querySelectorAll('[data-align]').forEach((b) => b.onclick = () => this.align(b.dataset.align));
     $('btnGrid').onclick = () => this.toggleSetting('grid');
     $('btnSnap').onclick = () => this.toggleSetting('snap');
@@ -536,6 +537,44 @@ class App {
       }
     });
     announce('Aligned ' + sel.length + ' steps');
+  }
+  /** Snap nearly-aligned steps onto shared columns (centre x) and rows (centre y). Uses the selection, or every step. */
+  smartAlign() {
+    const sel = this.store.selectedNodes();
+    const nodes = sel.length >= 2 ? sel : this.store.doc.nodes;
+    if (nodes.length < 2) { toast('Add at least two steps first.', 'warn'); return; }
+    const T = 24; // steps whose centres are within this many px count as "meant to line up"
+    const pos = new Map(nodes.map((n) => [n.id, { x: n.x, y: n.y }]));
+    const clusters = (key) => {
+      const out = [];
+      for (const n of [...nodes].sort((a, b) => key(a) - key(b))) {
+        const g = out[out.length - 1];
+        if (g && key(n) - key(g[g.length - 1]) <= T) g.push(n); else out.push([n]);
+      }
+      return out.filter((g) => g.length > 1);
+    };
+    const apart = (g, lo, len) => { // members must not overlap along the axis we are NOT aligning
+      const s = [...g].sort((a, b) => pos.get(a.id)[lo] - pos.get(b.id)[lo]);
+      return s.every((n, i) => !i || pos.get(n.id)[lo] >= pos.get(s[i - 1].id)[lo] + s[i - 1][len]);
+    };
+    let cols = 0, rows = 0;
+    for (const g of clusters((n) => pos.get(n.id).x + n.w / 2)) {
+      if (!apart(g, 'y', 'h')) continue;
+      const c = g.reduce((a, n) => a + pos.get(n.id).x + n.w / 2, 0) / g.length;
+      for (const n of g) pos.get(n.id).x = Math.round(c - n.w / 2);
+      cols++;
+    }
+    for (const g of clusters((n) => pos.get(n.id).y + n.h / 2)) {
+      if (!apart(g, 'x', 'w')) continue;
+      const c = g.reduce((a, n) => a + pos.get(n.id).y + n.h / 2, 0) / g.length;
+      for (const n of g) pos.get(n.id).y = Math.round(c - n.h / 2);
+      rows++;
+    }
+    if (nodes.every((n) => pos.get(n.id).x === n.x && pos.get(n.id).y === n.y)) { toast('Everything is already lined up.', 'ok'); return; }
+    this.store.commit('Smart align', () => {
+      for (const n of nodes) { const t = nodeById(this.store.doc, n.id); if (t) Object.assign(t, pos.get(n.id)); }
+    });
+    toast(`Lined up ${cols} column${cols === 1 ? '' : 's'} and ${rows} row${rows === 1 ? '' : 's'}.`, 'ok');
   }
   tidy() {
     const d = this.store.doc;
