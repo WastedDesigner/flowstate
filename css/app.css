@@ -118,10 +118,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 #canvas.placing{cursor:copy}
 .editor-layer{position:absolute;inset:0;pointer-events:none}
 .node-editor{
-  position:absolute;pointer-events:auto;border:2px solid var(--accent);border-radius:6px;
-  background:#fff;color:#111;resize:none;padding:4px 6px;text-align:center;overflow:hidden;
-  box-shadow:var(--sh);
+  position:absolute;pointer-events:auto;border:0;outline:0;margin:0;padding:0;border-radius:0;
+  background:transparent;color:transparent;resize:none;overflow:hidden;min-height:0;box-sizing:border-box;
 }
+.node-editor::selection{background:rgba(88,130,255,.35)}
 .edge-editor{position:absolute;pointer-events:auto;border:2px solid var(--accent);border-radius:6px;background:#fff;color:#111;padding:2px 6px;text-align:center}
 
 .empty-state{

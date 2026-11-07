@@ -1,6 +1,6 @@
 // FlowState — application wiring.
 import { h, esc, debounce, toast, announce, download, fmtBytes, fmtWhen, modKey, clamp, uid } from './util.js';
-import { SHAPES, SHAPE_ORDER } from './shapes.js';
+import { SHAPES, SHAPE_ORDER, textBox } from './shapes.js';
 import {
   newDoc, newNode, newEdge, nodeById, edgeById, docBounds, readFile, toFile, routeEdge,
   applyTheme, THEMES, LANGS, langLabel, DOC_VERSION,
@@ -364,12 +364,23 @@ class App {
     const ta = h('textarea', {
       class: 'node-editor', spellcheck: 'false',
       'aria-label': 'Step text',
-      style: `left:${p.x - r.left + 4 * k}px;top:${p.y - r.top + 4 * k}px;width:${Math.max(60, n.w * k - 8 * k)}px;height:${Math.max(28, n.h * k - 8 * k)}px;
-              font-family:${st.fontFamily};font-size:${(st.fontSize || 14) * k}px;font-weight:${st.fontWeight || 400};
-              background:${st.fill && st.fill !== 'none' ? st.fill : '#fff'};color:${st.textColor || '#111'};`,
+      // Transparent: the shape's own label re-renders live as you type, so the text appears inside the shape.
+      style: `font-family:${st.fontFamily};font-size:${(st.fontSize || 14) * k}px;font-weight:${st.fontWeight || 400};
+              font-style:${st.fontStyle === 'italic' ? 'italic' : 'normal'};line-height:1.3;text-align:${st.align || 'center'};
+              caret-color:${st.textColor || '#111'};`,
     });
+    const box = textBox(n.type, n.w, n.h);
+    const place = () => {
+      ta.style.height = 'auto';
+      const hgt = Math.min(ta.scrollHeight, box.h * k);
+      ta.style.height = hgt + 'px';
+      ta.style.top = p.y - r.top + (box.y + box.h / 2) * k - hgt / 2 + 'px';
+    };
+    ta.style.left = p.x - r.left + box.x * k + 'px';
+    ta.style.width = box.w * k + 'px';
     ta.value = n.text;
     layer.append(ta);
+    place();
     this.editor = { el: ta, nodeId: id, before: n.text };
     ta.focus();
     ta.select();
@@ -404,6 +415,7 @@ class App {
       }
     });
     ta.addEventListener('input', () => {
+      place();
       n.text = ta.value;
       this.renderer.nodeSig.delete(id);
       this.renderer.syncNode(n);
