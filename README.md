@@ -218,3 +218,11 @@ js/templates.js   sample charts
 js/app.js         wiring: shortcuts, modals, search, text editing
 serve.py          tiny static server for local development
 ```
+
+## Code to flowchart
+
+**From code** (toolbar or start screen) turns Python into a new chart. `if` / `elif` / `else`,
+`while`, `for`, `def` (the first function), `return` and `input` / `print` become shapes; any
+other line becomes a Process step, with its source attached on the Code tab. Limits: Python
+only; `break` and `continue` appear as ordinary steps, not jumps; a `#` inside a string is
+read as a comment; `try` / `with` / `class` headers become a step with their body inlined.

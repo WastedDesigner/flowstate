@@ -1,5 +1,5 @@
 // FlowState — application wiring.
-import { measure, fontString, wrapText, h, esc, debounce, toast, announce, download, fmtBytes, fmtWhen, modKey, clamp, uid } from './util.js';
+import { h, esc, debounce, toast, announce, download, fmtBytes, fmtWhen, modKey, clamp, uid } from './util.js';
 import { SHAPES, SHAPE_ORDER, textBox } from './shapes.js';
 import {
   newDoc, newNode, newEdge, nodeById, edgeById, docBounds, readFile, toFile, routeEdge,
@@ -12,6 +12,7 @@ import { runChecks, issueMaps } from './validate.js';
 import { lintDoc, lintCode } from './lint.js';
 import { getHints, freeSpot } from './hints.js';
 import { TEMPLATES, buildTemplate } from './templates.js';
+import { codeToDoc, fitNode } from './codeflow.js';
 import { buildPalette, buildTemplates, renderDesign, renderCode, renderChecks, renderHints } from './panels.js';
 import * as EX from './exporters.js';
 import { openSketchImport } from './scanui.js';
@@ -96,6 +97,8 @@ class App {
     $('btnSaveJson').onclick = () => this.backupJson();
     $('btnImport').onclick = () => this.pickImport();
     $('btnSketch').onclick = () => this.pickSketch();
+    $('btnCode').onclick = () => this.openCodeToChart();
+    $('esCode').onclick = () => this.openCodeToChart();
     $('btnExport').onclick = () => this.openExport();
     $('btnShare').onclick = () => this.share();
     $('btnHelp').onclick = () => this.openShortcuts();
@@ -393,7 +396,7 @@ class App {
       Object.assign(n, geo); // undo history must see the original size
       if (keep && val !== before) {
         n.text = before;
-        this.store.commit('Edit text', () => { const t = nodeById(this.store.doc, id); if (t) { t.text = val; this.fitNode(t); } });
+        this.store.commit('Edit text', () => { const t = nodeById(this.store.doc, id); if (t) { t.text = val; fitNode(t); } });
       } else {
         n.text = before;
         this.renderer.render();
@@ -416,22 +419,10 @@ class App {
     });
     ta.addEventListener('input', () => {
       n.text = ta.value;
-      this.fitNode(n);
+      fitNode(n);
       this.renderer.render();
       place();
     });
-  }
-  /** Grow a step (about its centre) until its text fits; never shrinks a size the user chose. */
-  fitNode(n) {
-    const st = n.style || {}, font = fontString(st), t = (SHAPES[n.type] || SHAPES.process).text;
-    const pad = 10, lh = (st.fontSize || 14) * 1.3;
-    const word = Math.max(0, ...String(n.text).split(/\s+/).map((s) => measure(s, font)));
-    const w = Math.max(n.w, Math.ceil((word + pad) / t[2]));
-    const lines = wrapText(n.text, Math.max(w * t[2], 16), font).length;
-    const hh = Math.max(n.h, Math.ceil((lines * lh + pad) / t[3]));
-    if (w === n.w && hh === n.h) return false;
-    n.x -= (w - n.w) / 2; n.y -= (hh - n.h) / 2; n.w = w; n.h = hh;
-    return true;
   }
   editEdgeLabel(id) {
     const e = edgeById(this.store.doc, id);
@@ -936,6 +927,35 @@ class App {
     this.afterChange();
     this.renderAllPanes();
     toast(`Opened the "${d.name}" template as a new project.`, 'ok');
+  }
+
+  openCodeToChart() {
+    const sample = 'def make_tea(strength):\n    boil_water()\n    while not water_boiled:\n        wait()\n    if strength > 3:\n        add("two bags")\n    elif strength > 1:\n        add("one bag")\n    else:\n        add("no bags")\n    print("Done")\n';
+    const body = h('div', {});
+    body.innerHTML = `<p class="muted" style="margin:0 0 8px;font-size:12.5px">Paste or type Python. <b>if / elif / else</b>, <b>while</b>, <b>for</b>, <b>def</b>, <b>return</b> and <b>input / print</b> become shapes; other lines become steps. It opens as a new project.</p>
+      <textarea id="codeSrc" spellcheck="false" style="width:100%;height:300px;font-family:var(--mono);font-size:13px;line-height:1.5;resize:vertical"></textarea>
+      <p id="codeMsg" class="muted" style="margin:8px 0 0;font-size:12.5px" aria-live="polite"></p>`;
+    this.openModal({
+      title: 'Code to flowchart', wide: true, body,
+      actions: [
+        { label: 'Cancel', onClick: () => this.closeModal() },
+        { label: 'Generate flowchart', primary: true, onClick: (m) => {
+          const { doc, warnings } = codeToDoc(m.querySelector('#codeSrc').value, this.store.doc.settings, 'From code');
+          if (!doc) { m.querySelector('#codeMsg').textContent = warnings[0]; return; }
+          this.closeModal();
+          this.adoptDoc(doc);
+          toast(warnings.length ? 'Chart generated. ' + warnings.join(' ') : 'Chart generated from your code.', warnings.length ? 'warn' : 'ok');
+        } },
+      ],
+      onMount: (m) => {
+        const ta = m.querySelector('#codeSrc');
+        ta.value = sample;
+        ta.addEventListener('keydown', (e) => {
+          if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '    '); }
+          else e.stopPropagation();
+        });
+      },
+    });
   }
 
   openProjects() {
