@@ -64,10 +64,12 @@ export function buildSvg(renderer, doc, opts = {}) {
     el.removeAttribute('tabindex');
     el.removeAttribute('data-id');
   }
-  for (const el of svg.querySelectorAll('.edge-hit')) el.remove();
+  // editor-only: hit areas, issue/code badges, selection state
+  for (const el of svg.querySelectorAll('.edge-hit,.badges')) el.remove();
+  for (const el of svg.querySelectorAll('.sel')) el.classList.remove('sel');
 
   const style = document.createElementNS(XMLNS, 'style');
-  style.textContent = 'text{white-space:pre}';
+  style.textContent = 'text{white-space:pre}.wire{fill:none;stroke-linecap:round;stroke-linejoin:round}.shape{stroke-linejoin:round}.elabel{paint-order:stroke;stroke-linejoin:round}';
   svg.insertBefore(style, svg.firstChild);
   return { markup: '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(svg), bounds: b };
 }
