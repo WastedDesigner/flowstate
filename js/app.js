@@ -1,5 +1,5 @@
 // FlowState — application wiring.
-import { h, esc, debounce, toast, announce, download, fmtBytes, fmtWhen, modKey, clamp, uid } from './util.js';
+import { measure, fontString, wrapText, h, esc, debounce, toast, announce, download, fmtBytes, fmtWhen, modKey, clamp, uid } from './util.js';
 import { SHAPES, SHAPE_ORDER, textBox } from './shapes.js';
 import {
   newDoc, newNode, newEdge, nodeById, edgeById, docBounds, readFile, toFile, routeEdge,
@@ -358,7 +358,6 @@ class App {
     this.closeEditor();
     const layer = document.getElementById('editorLayer');
     const r = this.svg.getBoundingClientRect();
-    const p = this.renderer.worldToScreen(n.x, n.y);
     const k = this.store.viewport.k;
     const st = n.style || {};
     const ta = h('textarea', {
@@ -369,15 +368,16 @@ class App {
               font-style:${st.fontStyle === 'italic' ? 'italic' : 'normal'};line-height:1.3;text-align:${st.align || 'center'};
               caret-color:${st.textColor || '#111'};`,
     });
-    const box = textBox(n.type, n.w, n.h);
+    const geo = { x: n.x, y: n.y, w: n.w, h: n.h };
     const place = () => {
+      const q = this.renderer.worldToScreen(n.x, n.y), box = textBox(n.type, n.w, n.h);
+      ta.style.left = q.x - r.left + box.x * k + 'px';
+      ta.style.width = box.w * k + 'px';
       ta.style.height = 'auto';
       const hgt = Math.min(ta.scrollHeight, box.h * k);
       ta.style.height = hgt + 'px';
-      ta.style.top = p.y - r.top + (box.y + box.h / 2) * k - hgt / 2 + 'px';
+      ta.style.top = q.y - r.top + (box.y + box.h / 2) * k - hgt / 2 + 'px';
     };
-    ta.style.left = p.x - r.left + box.x * k + 'px';
-    ta.style.width = box.w * k + 'px';
     ta.value = n.text;
     layer.append(ta);
     place();
@@ -390,13 +390,13 @@ class App {
       const before = this.editor.before;
       this.editor = null;
       ta.remove();
+      Object.assign(n, geo); // undo history must see the original size
       if (keep && val !== before) {
         n.text = before;
-        this.store.commit('Edit text', () => { const t = nodeById(this.store.doc, id); if (t) t.text = val; });
+        this.store.commit('Edit text', () => { const t = nodeById(this.store.doc, id); if (t) { t.text = val; this.fitNode(t); } });
       } else {
         n.text = before;
-        this.renderer.nodeSig.delete(id);
-        this.renderer.syncNode(n);
+        this.renderer.render();
       }
       this.svg.focus({ preventScroll: true });
     };
@@ -415,11 +415,23 @@ class App {
       }
     });
     ta.addEventListener('input', () => {
-      place();
       n.text = ta.value;
-      this.renderer.nodeSig.delete(id);
-      this.renderer.syncNode(n);
+      this.fitNode(n);
+      this.renderer.render();
+      place();
     });
+  }
+  /** Grow a step (about its centre) until its text fits; never shrinks a size the user chose. */
+  fitNode(n) {
+    const st = n.style || {}, font = fontString(st), t = (SHAPES[n.type] || SHAPES.process).text;
+    const pad = 10, lh = (st.fontSize || 14) * 1.3;
+    const word = Math.max(0, ...String(n.text).split(/\s+/).map((s) => measure(s, font)));
+    const w = Math.max(n.w, Math.ceil((word + pad) / t[2]));
+    const lines = wrapText(n.text, Math.max(w * t[2], 16), font).length;
+    const hh = Math.max(n.h, Math.ceil((lines * lh + pad) / t[3]));
+    if (w === n.w && hh === n.h) return false;
+    n.x -= (w - n.w) / 2; n.y -= (hh - n.h) / 2; n.w = w; n.h = hh;
+    return true;
   }
   editEdgeLabel(id) {
     const e = edgeById(this.store.doc, id);
