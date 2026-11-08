@@ -1,5 +1,5 @@
 // FlowState — application wiring.
-import { h, esc, debounce, toast, announce, fmtBytes, fmtWhen, modKey, clamp, uid, clone } from './util.js';
+import { h, esc, debounce, toast, announce, fmtBytes, fmtWhen, modKey, clamp, uid, clone, download } from './util.js';
 import { SHAPES, textBox } from './shapes.js';
 import {
   newDoc, newNode, newEdge, nodeById, edgeById, docBounds, readFile, routeEdge,
@@ -12,8 +12,9 @@ import { runChecks, issueMaps } from './validate.js';
 import { lintDoc } from './lint.js';
 import { freeSpot, autoLayout } from './layout.js';
 import { TEMPLATES, buildTemplate } from './templates.js';
-import { codeToDoc, fitNode } from './codeflow.js';
+import { codeToDoc, fitNode, guessLang, CODE_LANGS } from './codeflow.js';
 import { toMermaid, fromMermaid } from './mermaid.js';
+import { docToCode, OUT_LANGS, OUT_EXT } from './chartcode.js';
 import { buildPalette, buildTemplates, renderDesign, renderCode, renderChecks } from './panels.js';
 import { openPopover, closePopover, renderCtxBar, wireCtxBar } from './ui.js';
 import { icon, alignIcon, ALIGN_LABELS } from './icons.js';
@@ -175,6 +176,7 @@ class App {
     for (const id of ['crMermaid', 'esMermaid']) $(id).onclick = () => this.openMermaid();
     for (const id of ['crImport', 'esImport']) $(id).onclick = () => this.pickImport();
     $('crProjects').onclick = () => this.openProjects();
+    $('crToCode').onclick = () => this.openChartToCode();
     $('esTemplate').onclick = () => this.openTemplatePicker();
 
     document.querySelectorAll('.btn.tool').forEach((b) => b.onclick = () => { this.ia.setTool(b.dataset.tool); this.clearArmed?.(); });
@@ -217,6 +219,7 @@ class App {
       { label: 'Templates', icon: 'templates', onClick: () => this.openTemplatePicker() },
       { sep: true },
       { label: 'Code to flowchart', icon: 'code', onClick: () => this.openCodeToChart() },
+      { label: 'Flowchart to code', icon: 'code', onClick: () => this.openChartToCode() },
       { label: 'Mermaid import / export', icon: 'graph', onClick: () => this.openMermaid() },
       { sep: true },
       { label: 'Open a backup (.json, .png, .svg)', icon: 'upload', onClick: () => this.pickImport() },
@@ -1026,10 +1029,12 @@ class App {
     const samples = {
       py: 'def make_tea(strength):\n    boil_water()\n    while not water_boiled:\n        wait()\n    if strength > 3:\n        add("two bags")\n    elif strength > 1:\n        add("one bag")\n    else:\n        add("no bags")\n    print("Done")\n',
       js: 'function makeTea(strength) {\n  boilWater();\n  while (!waterBoiled) {\n    wait();\n  }\n  if (strength > 3) {\n    add("two bags");\n  } else if (strength > 1) {\n    add("one bag");\n  } else {\n    add("no bags");\n  }\n  console.log("Done");\n}\n',
+      cpp: '#include <iostream>\nusing namespace std;\n\nint main() {\n    int guess, secret = 7, tries = 0;\n    do {\n        cout << "Guess: ";\n        cin >> guess;\n        tries++;\n        if (guess < secret) {\n            cout << "Too low" << endl;\n        } else if (guess > secret) {\n            cout << "Too high" << endl;\n        }\n    } while (guess != secret);\n    cout << "Got it in " << tries << endl;\n    return 0;\n}\n',
+      cs: 'using System;\n\nclass Program\n{\n    static void Main(string[] args)\n    {\n        int total = 0;\n        for (int i = 1; i <= 10; i++)\n        {\n            if (i % 3 == 0) continue;\n            total += i;\n        }\n        switch (total % 2)\n        {\n            case 0:\n                Console.WriteLine("Even");\n                break;\n            default:\n                Console.WriteLine("Odd");\n                break;\n        }\n    }\n}\n',
     };
     const body = h('div', {});
-    body.innerHTML = `<div class="tabrow"><button class="btn on" data-l="py">Python</button><button class="btn" data-l="js">JavaScript</button></div>
-      <p class="muted" style="margin:0 0 8px;font-size:12.5px"><b>if / else</b>, <b>while</b>, <b>for</b>, functions, <b>break</b>, <b>continue</b>, <b>return</b> and <b>input / print</b> become shapes; other lines become steps. It opens as a new project.</p>
+    body.innerHTML = `<div class="tabrow">${Object.entries(CODE_LANGS).map(([k, v], i) => `<button class="btn ${i ? '' : 'on'}" data-l="${k}">${esc(v)}</button>`).join('')}</div>
+      <p class="muted" style="margin:0 0 8px;font-size:12.5px"><b>if / else</b>, <b>switch</b>, <b>while</b>, <b>do-while</b>, <b>for</b>, <b>foreach</b>, functions, <b>break</b>, <b>continue</b>, <b>return</b> and input / output calls become shapes; other statements become steps. When there is a <b>main</b> function it is charted; otherwise the main script or the first function. It opens as a new project.</p>
       <textarea id="codeSrc" class="codebox" spellcheck="false"></textarea>
       <p id="codeMsg" class="muted" style="margin:8px 0 0;font-size:12.5px" aria-live="polite"></p>`;
     let lang = 'py';
@@ -1042,22 +1047,65 @@ class App {
           if (!doc) { m.querySelector('#codeMsg').textContent = warnings[0]; return; }
           this.closeModal();
           this.adoptDoc(doc);
-          toast(warnings.length ? 'Chart generated. ' + warnings.join(' ') : 'Chart generated from your code.', warnings.length ? 'warn' : 'ok');
+          toast(warnings.length ? 'Chart generated. ' + warnings.join(' ') : 'Chart generated from your code.', warnings.length ? 'warn' : 'ok', warnings.length ? 6000 : 3200);
         } },
       ],
       onMount: (m) => {
-        const ta = m.querySelector('#codeSrc');
+        const ta = m.querySelector('#codeSrc'), msg = m.querySelector('#codeMsg');
         ta.value = samples.py;
-        m.querySelectorAll('[data-l]').forEach((b) => b.onclick = () => {
+        const choose = (l, keepText) => {
           const was = samples[lang];
-          lang = b.dataset.l;
-          m.querySelectorAll('[data-l]').forEach((x) => x.classList.toggle('on', x === b));
-          if (!ta.value.trim() || ta.value === was) ta.value = samples[lang];
-        });
+          lang = l;
+          m.querySelectorAll('[data-l]').forEach((x) => x.classList.toggle('on', x.dataset.l === l));
+          if (!keepText && (!ta.value.trim() || ta.value === was)) ta.value = samples[lang];
+        };
+        m.querySelectorAll('[data-l]').forEach((b) => b.onclick = () => { choose(b.dataset.l); msg.textContent = ''; });
+        ta.addEventListener('paste', () => setTimeout(() => {
+          const g = guessLang(ta.value);
+          if (g && g !== lang) { choose(g, true); msg.textContent = `That looks like ${CODE_LANGS[g]}, so the language was switched.`; }
+        }, 0));
         ta.addEventListener('keydown', (e) => {
           if (e.key === 'Tab') { e.preventDefault(); document.execCommand('insertText', false, '    '); }
           else e.stopPropagation();
         });
+      },
+    });
+  }
+
+  /** Flowchart -> code, in any of five languages. */
+  openChartToCode() {
+    if (!this.store.doc.nodes.some((n) => n.type !== 'note' && n.type !== 'lane')) { toast('Draw or open a chart first.', 'warn'); return; }
+    const back = { python: 'py', javascript: 'js', typescript: 'js', cpp: 'cpp', csharp: 'cs', pseudocode: 'pseudo' };
+    const counts = {};
+    for (const n of this.store.doc.nodes) if (n.code?.source && back[n.code.lang]) counts[back[n.code.lang]] = (counts[back[n.code.lang]] || 0) + 1;
+    let lang = this._codeLang || Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'py';
+    const body = h('div', {});
+    body.innerHTML = `<div class="tabrow">${Object.entries(OUT_LANGS).map(([k, v]) => `<button class="btn" data-l="${k}">${esc(v)}</button>`).join('')}</div>
+      <p class="muted" style="margin:0 0 8px;font-size:12.5px">FlowState follows the chart from Start: decisions become <b>if / else</b>, loops become <b>while</b>, <b>for</b> or <b>do-while</b>, and arrows that jump become <b>break</b>, <b>continue</b> or <b>return</b>. Code attached to a step is used when it is in the same language; steps written in words become calls for you to fill in.</p>
+      <textarea id="outCode" class="codebox" readonly spellcheck="false" style="height:340px"></textarea>
+      <div id="outNotes"></div>`;
+    const show = (m) => {
+      m.querySelectorAll('[data-l]').forEach((x) => x.classList.toggle('on', x.dataset.l === lang));
+      const { code, warnings } = docToCode(this.store.doc, lang);
+      m.querySelector('#outCode').value = code;
+      m.querySelector('#outNotes').innerHTML = warnings.length ? `<ul class="warnlist">${warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : '';
+    };
+    this.openModal({
+      title: 'Flowchart to code', wide: true, body,
+      actions: [
+        { label: 'Close', onClick: () => this.closeModal() },
+        { label: 'Copy', onClick: async (m) => {
+          try { await navigator.clipboard.writeText(m.querySelector('#outCode').value); toast('Code copied.', 'ok', 1600); }
+          catch { m.querySelector('#outCode').select(); toast('Press Ctrl+C to copy the selected code.', 'warn'); }
+        } },
+        { label: 'Download', primary: true, onClick: (m) => {
+          const name = (this.store.doc.name || 'flowchart').replace(/[^\w\-. ]+/g, '').trim().replace(/\s+/g, '-') || 'flowchart';
+          download(new Blob([m.querySelector('#outCode').value], { type: 'text/plain' }), `${name}.${OUT_EXT[lang]}`);
+        } },
+      ],
+      onMount: (m) => {
+        m.querySelectorAll('[data-l]').forEach((b) => b.onclick = () => { lang = b.dataset.l; this._codeLang = lang; show(m); });
+        show(m);
       },
     });
   }

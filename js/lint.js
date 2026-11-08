@@ -1,4 +1,4 @@
-// Per-language code checks (Python, JavaScript, TypeScript, pseudocode) for the snippet attached to a step.
+// Per-language code checks (Python, JavaScript, TypeScript, C++, C#, pseudocode) for the snippet attached to a step.
 // These are deliberately heuristic — they are not compilers. The support table
 // below is shown in the UI so it is clear what each language actually gets.
 import { LANGS, langLabel, outgoing } from './model.js';
@@ -212,12 +212,13 @@ export function lintCode(node, doc) {
   if (supported.has('delimiters')) findings.push(...checkDelimiters(code));
   if (supported.has('syntax') || supported.has('logic')) {
     if (lang === 'python') findings.push(...checkPython(code, lines));
-    else if (['javascript', 'typescript'].includes(lang)) findings.push(...checkCLike(code, lines, lang));
+    else if (['javascript', 'typescript', 'cpp', 'csharp'].includes(lang)) findings.push(...checkCLike(code, lines, lang));
   }
   if (lang === 'pseudocode') findings.push(...checkPseudo(code));
   if (supported.has('structure')) findings.push(...checkStructure(node, src, doc));
 
   if (!supported.has('logic')) findings = findings.filter((f) => f.kind !== 'logic');
+  if (node.type === 'decision') findings = findings.filter((f) => !/semicolon/.test(f.msg));   // a condition is an expression, not a statement
   const rank = { error: 0, warning: 1, info: 2 };
   findings.sort((a, b) => rank[a.sev] - rank[b.sev] || a.line - b.line);
   res.findings = findings.slice(0, 40);

@@ -86,6 +86,8 @@ export const LANGS = [
   { id: 'python', label: 'Python', checks: ['delimiters', 'syntax', 'logic', 'structure'] },
   { id: 'javascript', label: 'JavaScript', checks: ['delimiters', 'syntax', 'logic', 'structure'] },
   { id: 'typescript', label: 'TypeScript', checks: ['delimiters', 'syntax', 'logic', 'structure'] },
+  { id: 'cpp', label: 'C++', checks: ['delimiters', 'syntax', 'logic', 'structure'] },
+  { id: 'csharp', label: 'C#', checks: ['delimiters', 'syntax', 'logic', 'structure'] },
   { id: 'other', label: 'Other / plain text', checks: [] },
 ];
 export const langLabel = (id) => (LANGS.find((l) => l.id === id) || LANGS[0]).label;

@@ -307,12 +307,14 @@ function checksBody(res) {
     </div>`).join('')}</div></div>`;
 }
 function supportSection() {
-  return sect('About the checks', `<p class="muted" style="margin:0;font-size:11.5px">Checks cover Python, JavaScript, TypeScript and pseudocode: unbalanced brackets, <code>=</code> instead of <code>==</code>, missing colons or semicolons, endless loops, and code that disagrees with its shape. They are pattern-based, not compilers, and run only in your browser. Other languages are stored and exported but not checked.</p>`);
+  return sect('About the checks', `<p class="muted" style="margin:0;font-size:11.5px">Checks cover Python, JavaScript, TypeScript, C++, C# and pseudocode: unbalanced brackets, <code>=</code> instead of <code>==</code>, missing colons or semicolons, endless loops, and code that disagrees with its shape. They are pattern-based, not compilers, and run only in your browser. Other languages are stored and exported but not checked.</p>`);
 }
 function placeholderFor(lang) {
   switch (lang) {
     case 'python': return 'if total > limit:\n    raise ValueError("over limit")';
     case 'javascript': case 'typescript': return 'const ok = await verify(token);\nif (!ok) return deny();';
+    case 'cpp': return 'if (balance >= amount) {\n    balance -= amount;\n}';
+    case 'csharp': return 'if (balance >= amount)\n{\n    balance -= amount;\n}';
     case 'pseudocode': return 'IF balance >= amount THEN\n    SUBTRACT amount FROM balance\nEND IF';
     default: return 'Notes or code for this step…';
   }
