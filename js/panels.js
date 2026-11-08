@@ -251,8 +251,8 @@ export function renderCode(app) {
   pane.innerHTML = sect(`Code for "${(n.text || 'step').slice(0, 24)}"`, `
     <div class="row"><label for="cLang">Language</label><select id="cLang" class="grow">${langOpts}</select></div>
     <textarea id="cSrc" spellcheck="false" rows="12" placeholder="${esc(placeholderFor(n.code.lang))}">${esc(n.code.source)}</textarea>
-    <div class="row" style="margin-top:8px"><span class="muted grow">${res.lines} line${res.lines === 1 ? '' : 's'}</span>
-      <button class="btn" data-act="clearCode">Clear</button><button class="btn" data-act="copyLangAll">Use this language everywhere</button></div>
+    <div class="row codeactions"><span class="muted grow">${res.lines} line${res.lines === 1 ? '' : 's'}</span>
+      <button class="btn" data-act="clearCode">Clear</button><button class="btn" data-act="copyLangAll" title="Set this language on every step">Use for all steps</button></div>
   `) + sect('Checks for this snippet', checksBody(res)) + supportSection();
 
   const ta = pane.querySelector('#cSrc');

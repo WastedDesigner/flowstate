@@ -467,3 +467,8 @@ kbd{background:var(--bg3);border:1px solid var(--line2);border-bottom-width:2px;
 .checkline{display:flex;align-items:center;gap:7px;color:var(--ink2);cursor:pointer;font-size:13px}
 .checkline input{width:auto}
 @media (min-width:760px){ .xgrid{grid-template-columns:1fr 1fr} }
+
+.codeactions{flex-wrap:wrap;margin-top:8px}
+.codeactions .grow{flex:1 1 60px}
+.codeactions .btn{min-height:34px;padding:0 12px}
+.row .btn{min-width:0}
