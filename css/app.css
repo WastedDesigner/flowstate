@@ -419,7 +419,9 @@ kbd{background:var(--bg3);border:1px solid var(--line2);border-bottom-width:2px;
   .dock-btn:hover{background:var(--bg3)}
   .dock-btn.active{background:var(--accent-soft)}
   .dock-btn.active::after{display:none}
-  .dock-m{display:none}
+  .dock-btn.dock-m:first-of-type,.dock-btn[data-panel="design"]{margin-top:auto}
+  .dock-btn[data-panel="checks"]{margin-bottom:6px}
+  .dock-btn .pill{top:7px;left:calc(50% + 8px)}
   .side,.rail{
     position:static;order:1;max-height:none;border:0;border-radius:0;box-shadow:none;animation:none;
     width:272px;flex:0 0 auto;border-right:1px solid var(--line);
