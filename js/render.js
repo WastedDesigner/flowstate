@@ -97,13 +97,14 @@ export class Renderer {
   syncNode(n) {
     let g = this.nodeEls.get(n.id);
     if (!g) {
-      g = sv('g', { class: 'node', 'data-id': n.id, tabindex: -1, role: 'group' });
+      g = sv('g', { class: 'node' + (n.type === 'lane' ? ' lane' : ''), 'data-id': n.id, tabindex: -1, role: 'group' });
       g.append(sv('path', { class: 'shape' }), sv('g', { class: 'decor' }), sv('text', { class: 'label' }), sv('g', { class: 'badges' }));
-      this.nodeLayer.append(g);
+      if (n.type === 'lane') this.nodeLayer.prepend(g); else this.nodeLayer.append(g);   // lanes sit behind everything
       this.nodeEls.set(n.id, g);
     }
     const sig = JSON.stringify([n.type, n.w, n.h, n.text, n.style, n.code?.source ? 1 : 0, this.issues.get(n.id) || 0]);
     g.setAttribute('transform', `translate(${n.x},${n.y})`);
+    g.classList.toggle('lane', n.type === 'lane');
     if (this.nodeSig.get(n.id) === sig) return g;
     this.nodeSig.set(n.id, sig);
 
@@ -258,6 +259,13 @@ export class Renderer {
         'vector-effect': 'non-scaling-stroke',
       }));
     }
+    const gids = new Set(nodes.map((n) => n.group).filter(Boolean));
+    for (const gid of gids) {
+      const mem = this.store.doc.nodes.filter((n) => n.group === gid);
+      const x0 = Math.min(...mem.map((n) => n.x)) - 10, y0 = Math.min(...mem.map((n) => n.y)) - 10;
+      const x1 = Math.max(...mem.map((n) => n.x + n.w)) + 10, y1 = Math.max(...mem.map((n) => n.y + n.h)) + 10;
+      this.selLayer.append(sv('rect', { class: 'groupring', x: x0, y: y0, width: x1 - x0, height: y1 - y0, rx: 10, 'vector-effect': 'non-scaling-stroke' }));
+    }
     if (nodes.length === 1) {
       const n = nodes[0];
       for (const [name, fx, fy] of HANDLES) {
@@ -280,7 +288,7 @@ export class Renderer {
     if (this.hoverNode) ids.add(this.hoverNode);
     for (const id of ids) {
       const n = doc.nodes.find((x) => x.id === id);
-      if (!n || n.type === 'note') continue;
+      if (!n || n.type === 'note' || n.type === 'lane') continue;
       for (const p of PORTS) {
         const pt = portLocal(n.type, n.w, n.h, p);
         const cx = n.x + pt.x, cy = n.y + pt.y;
@@ -292,7 +300,8 @@ export class Renderer {
   }
   scaleGizmos() {
     const k = this.store.viewport.k || 1;
-    const hs = 8 / k;
+    const coarse = matchMedia('(pointer: coarse)').matches;
+    const hs = (coarse ? 16 : 8) / k;
     for (const r of this.gizmoLayer.children) {
       const x = +r.getAttribute('x'), y = +r.getAttribute('y');
       if (r._cx === undefined) { r._cx = x; r._cy = y; }
@@ -300,7 +309,7 @@ export class Renderer {
     }
     for (const c of this.portLayer.children) {
       const isHit = c.classList.contains('porthit');
-      c.setAttribute('r', (isHit ? 11 : 5) / k);
+      c.setAttribute('r', (isHit ? (coarse ? 20 : 11) : (coarse ? 7 : 5)) / k);
       if (!isHit) c.setAttribute('stroke-width', 1.5 / k);
     }
     for (const r of this.findLayer.children) r.setAttribute('rx', 8 / k);

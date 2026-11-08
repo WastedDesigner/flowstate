@@ -1,4 +1,4 @@
-// Per-language code checks for the snippet attached to a step.
+// Per-language code checks (Python, JavaScript, TypeScript, pseudocode) for the snippet attached to a step.
 // These are deliberately heuristic — they are not compilers. The support table
 // below is shown in the UI so it is clear what each language actually gets.
 import { LANGS, langLabel, outgoing } from './model.js';
@@ -20,8 +20,8 @@ export function supportTable() {
 
 /* ---------- lexical pre-pass: blank out strings and comments ---------- */
 function strip(src, lang) {
-  const lineCmt = lang === 'python' ? '#' : lang === 'sql' ? '--' : '//';
-  const hasBlockCmt = !['python', 'sql'].includes(lang);
+  const lineCmt = lang === 'python' ? '#' : '//';
+  const hasBlockCmt = lang !== 'python';
   const tripleQuotes = lang === 'python';
   const backtick = ['javascript', 'typescript'].includes(lang);
   const out = Array.from(src);
@@ -143,7 +143,6 @@ function checkCLike(code, lines, lang) {
       if (/[^=!<>]==[^=]/.test(line)) out.push({ sev: 'info', line: ln, msg: '"==" coerces types; "===" is usually what you want.' });
     }
     if (lang === 'typescript' && /:\s*any\b/.test(line)) out.push({ sev: 'info', line: ln, msg: '": any" switches type checking off for this value.' });
-    if (lang === 'cpp' && /\busing\s+namespace\s+std\s*;/.test(line)) out.push({ sev: 'info', line: ln, msg: '"using namespace std;" is fine in a snippet but avoided in headers.' });
   });
   if (/\b(while|for)\s*\(\s*(true|1|;;)\s*\)/.test(code) && !/\b(break|return|goto|exit|throw)\b/.test(code)) {
     out.push({ sev: 'warning', line: lineOf(code, code.search(/\b(while|for)\s*\(\s*(true|1|;;)/)), msg: 'This loop never ends — there is no break or return inside it.', kind: 'logic' });
@@ -151,15 +150,6 @@ function checkCLike(code, lines, lang) {
   if ((lang === 'javascript' || lang === 'typescript') && /\bif\s*\([^)]*\)\s*;/.test(code)) {
     out.push({ sev: 'warning', line: lineOf(code, code.search(/\bif\s*\([^)]*\)\s*;/)), msg: 'An empty statement follows this if — the body is the ";".', kind: 'logic' });
   }
-  return out;
-}
-
-function checkSql(code) {
-  const out = [];
-  const up = code.toUpperCase();
-  if (/\bSELECT\b/.test(up) && !/\bFROM\b/.test(up) && !/\bSELECT\s+\d/.test(up)) out.push({ sev: 'warning', line: 1, msg: 'SELECT without a FROM clause.' });
-  if (/\bDELETE\s+FROM\b/.test(up) && !/\bWHERE\b/.test(up)) out.push({ sev: 'error', line: lineOf(code, up.indexOf('DELETE')), msg: 'DELETE with no WHERE clause removes every row.' });
-  if (/\bUPDATE\b/.test(up) && !/\bWHERE\b/.test(up)) out.push({ sev: 'error', line: lineOf(code, up.indexOf('UPDATE')), msg: 'UPDATE with no WHERE clause rewrites every row.' });
   return out;
 }
 
@@ -222,9 +212,8 @@ export function lintCode(node, doc) {
   if (supported.has('delimiters')) findings.push(...checkDelimiters(code));
   if (supported.has('syntax') || supported.has('logic')) {
     if (lang === 'python') findings.push(...checkPython(code, lines));
-    else if (['javascript', 'typescript', 'java', 'cpp', 'csharp'].includes(lang)) findings.push(...checkCLike(code, lines, lang));
+    else if (['javascript', 'typescript'].includes(lang)) findings.push(...checkCLike(code, lines, lang));
   }
-  if (lang === 'sql') findings.push(...checkSql(code));
   if (lang === 'pseudocode') findings.push(...checkPseudo(code));
   if (supported.has('structure')) findings.push(...checkStructure(node, src, doc));
 

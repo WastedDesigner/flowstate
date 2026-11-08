@@ -1,12 +1,12 @@
-// Left palette + right-hand Design / Code / Checks / Hints panes.
+// Left palette + right-hand Design / Code / Checks panes.
 import { esc, h } from './util.js';
 import { SHAPE_ORDER, SHAPES, thumbSVG } from './shapes.js';
 import { THEMES, THEME_KEYS, LANGS, FONTS, DASHES, ARROWS, langLabel } from './model.js';
 import { TEMPLATES } from './templates.js';
-import { lintCode, supportTable, CHECK_LABELS } from './lint.js';
+import { lintCode } from './lint.js';
 
-const FILLS = ['#ffffff', '#f4f6fa', '#e3f7ec', '#fff6e2', '#fdeaea', '#eef2ff', '#f3ecff', '#1b2431', '#16253f', '#102b20', '#30161a', '#30260f', '#221a36', 'none'];
-const STROKES = ['#4a5a72', '#9fb0c6', '#5b8cff', '#3fbf7f', '#f4685f', '#f0b43c', '#a07ae0', '#20bfbf', '#111111', '#ffffff'];
+const FILLS = ['#c8ff00', '#000000', '#ffffff', '#f4f6fa', '#e3f7ec', '#fff6e2', '#fdeaea', '#eef2ff', '#f3ecff', '#1b2431', '#16253f', '#102b20', '#30161a', '#30260f', '#221a36', 'none'];
+const STROKES = ['#c8ff00', '#4a5a72', '#9fb0c6', '#5b8cff', '#3fbf7f', '#f4685f', '#f0b43c', '#a07ae0', '#20bfbf', '#111111', '#ffffff'];
 
 /* ---------------- palette ---------------- */
 export function buildPalette(app) {
@@ -30,6 +30,7 @@ export function buildPalette(app) {
       if (already) { app.ia.arm(null); return; }
       b.classList.add('armed');
       app.ia.arm(type);
+      app.afterArm?.();
     });
     host.append(b);
   }
@@ -75,10 +76,10 @@ function nodeSections(app, nodes) {
   const shapeOpts = SHAPE_ORDER.map((t) => `<option value="${t}" ${t === n.type ? 'selected' : ''}>${esc(SHAPES[t].label.replace('\n', ' '))}</option>`).join('');
   let out = sect(multi ? `${nodes.length} steps selected` : 'Step', `
     <div class="row"><label for="pShape">Shape</label><select id="pShape" class="grow">${shapeOpts}</select></div>
-    ${multi ? '' : `<div class="row"><label for="pText">Text</label><textarea id="pText" class="grow" rows="2" style="font-family:var(--sans);min-height:52px">${esc(n.text)}</textarea></div>`}
+    ${multi ? '' : `<div class="row"><label for="pText">${n.type === 'lane' ? 'Title' : 'Text'}</label><textarea id="pText" class="grow" rows="2" style="font-family:var(--sans);min-height:52px">${esc(n.text)}</textarea></div>`}
     <div class="row"><label>Position</label><input type="number" id="pX" class="grow" value="${Math.round(n.x)}" step="10"><input type="number" id="pY" class="grow" value="${Math.round(n.y)}" step="10"></div>
     <div class="row"><label>Size</label><input type="number" id="pW" class="grow" value="${Math.round(n.w)}" min="48" step="10"><input type="number" id="pH" class="grow" value="${Math.round(n.h)}" min="34" step="10"></div>
-    <div class="seg"><button class="btn" data-act="fitText">Fit to text</button><button class="btn" data-act="dupe">Duplicate</button><button class="btn danger" data-act="del">Delete</button></div>
+    <div class="seg"><button class="btn" data-act="fitText">Fit to text</button><button class="btn" data-act="dupe">Duplicate</button>${n.group || multi ? `<button class="btn" data-act="${nodes.every((x) => x.group && x.group === n.group) ? 'ungroup' : 'group'}">${nodes.every((x) => x.group && x.group === n.group) ? 'Ungroup' : 'Group'}</button>` : ''}<button class="btn danger" data-act="del">Delete</button></div>
   `);
   out += sect('Fill & outline', `
     <div class="row"><label>Fill</label><input type="color" data-color="fill" value="${hexOf(st.fill)}"><span class="grow muted">${esc(st.fill || '')}</span></div>
@@ -127,9 +128,8 @@ function docSections(app) {
   const counts = { n: d.nodes.length, e: d.edges.length, code: d.nodes.filter((x) => x.code?.source?.trim()).length };
   return sect('Nothing selected', `<p class="muted" style="margin:0;font-size:12.5px">Click a step or a connection to style it. These settings apply to the whole chart.</p>`)
     + sect('Theme', `
-      <div class="row"><label for="dTheme">Palette</label><select id="dTheme" class="grow">${THEME_KEYS.map((k) => `<option value="${k}" ${k === s.theme ? 'selected' : ''}>${esc(THEMES[k].label)}</option>`).join('')}</select></div>
-      <div class="seg"><button class="btn" data-act="applyTheme">Restyle every step</button></div>
-      <p class="muted" style="margin:8px 0 0;font-size:11.5px">Changing the palette affects new steps. "Restyle every step" also overwrites colours you have set by hand.</p>`)
+      <div class="themes">${THEME_KEYS.map((k) => `<button class="themecard ${k === s.theme ? 'on' : ''}" data-seg="theme" data-v="${k}" style="--tb:${THEMES[k].bg};--ti:${THEMES[k].roles.step[0]};--ts:${THEMES[k].roles.step[1]}"><i></i><span>${esc(THEMES[k].label)}</span></button>`).join('')}</div>
+      <p class="muted" style="margin:8px 0 0;font-size:11.5px">Switching theme restyles every step and connection. Undo brings your colours back.</p>`)
     + sect('Canvas', `
       <div class="row"><label for="dGrid">Grid size</label><input type="number" id="dGrid" class="grow" min="2" max="80" value="${s.gridSize}"></div>
       <div class="row"><label>Default routing</label>${seg('dcurve', [['orthogonal', 'Elbow'], ['curve', 'Curved'], ['straight', 'Straight']], s.edgeCurve)}</div>
@@ -143,7 +143,8 @@ function docSections(app) {
       <div class="kv"><span>Connections</span><b>${counts.e}</b></div>
       <div class="kv"><span>Steps with code</span><b>${counts.code}</b></div>
       <div class="kv"><span>Last change</span><b>${new Date(d.updatedAt).toLocaleString()}</b></div>
-      <div class="seg" style="margin-top:8px"><button class="btn" data-act="fit">Fit to view</button><button class="btn" data-act="tidy">Tidy up spacing</button></div>`);
+      <div class="seg" style="margin-top:8px"><button class="btn" data-act="fit">Fit to view</button><button class="btn" data-act="tidy">Tidy up spacing</button></div>
+      <div class="seg" style="margin-top:6px"><button class="btn" data-act="layoutTB">Auto layout ↓</button><button class="btn" data-act="layoutLR">Auto layout →</button></div>`);
 }
 
 const hexOf = (c) => (/^#[0-9a-f]{6}$/i.test(c || '') ? c : '#888888');
@@ -215,6 +216,7 @@ function wire(app, pane) {
   pane.querySelectorAll('[data-seg]').forEach((b) => b.addEventListener('click', () => {
     const v = b.dataset.v, kind = b.dataset.seg;
     const num = Number(v);
+    if (kind === 'theme') { app.setTheme(v); return; }
     if (kind === 'ndash') editNodes('Line style', (n) => (n.style.dash = v));
     if (kind === 'weight') editNodes('Font weight', (n) => (n.style.fontWeight = num));
     if (kind === 'italic') editNodes('Italic', (n) => (n.style.fontStyle = v));
@@ -251,7 +253,7 @@ export function renderCode(app) {
     <textarea id="cSrc" spellcheck="false" rows="12" placeholder="${esc(placeholderFor(n.code.lang))}">${esc(n.code.source)}</textarea>
     <div class="row" style="margin-top:8px"><span class="muted grow">${res.lines} line${res.lines === 1 ? '' : 's'}</span>
       <button class="btn" data-act="clearCode">Clear</button><button class="btn" data-act="copyLangAll">Use this language everywhere</button></div>
-  `) + sect('Checks for this snippet', checksBody(res)) + supportSection(n.code.lang);
+  `) + sect('Checks for this snippet', checksBody(res)) + supportSection();
 
   const ta = pane.querySelector('#cSrc');
   let t;
@@ -304,20 +306,14 @@ function checksBody(res) {
       <b>Line ${f.line} · ${f.sev}</b><p>${esc(f.msg)}</p>
     </div>`).join('')}</div></div>`;
 }
-function supportSection(current) {
-  const rows = supportTable().map((l) => `<tr${l.id === current ? ' style="font-weight:600"' : ''}><td>${esc(l.label)}</td>${Object.keys(CHECK_LABELS).map((c) => `<td class="${l.checks.has(c) ? 'tagyes' : 'tagno'}">${l.checks.has(c) ? '✓' : '—'}</td>`).join('')}</tr>`).join('');
-  return sect('What each language gets', `
-    <table class="support-table"><thead><tr><th>Language</th>${Object.values(CHECK_LABELS).map((l) => `<th>${esc(l.split(' ')[0])}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
-    <p class="muted" style="margin:8px 0 0;font-size:11.5px">These are pattern-based checks, not compilers: they catch common slips (unbalanced brackets, <code>=</code> instead of <code>==</code>, missing colons or semicolons, endless loops) but will not find every error. Nothing is sent anywhere — all checks run in your browser.</p>`);
+function supportSection() {
+  return sect('About the checks', `<p class="muted" style="margin:0;font-size:11.5px">Checks cover Python, JavaScript, TypeScript and pseudocode: unbalanced brackets, <code>=</code> instead of <code>==</code>, missing colons or semicolons, endless loops, and code that disagrees with its shape. They are pattern-based, not compilers, and run only in your browser. Other languages are stored and exported but not checked.</p>`);
 }
 function placeholderFor(lang) {
   switch (lang) {
     case 'python': return 'if total > limit:\n    raise ValueError("over limit")';
     case 'javascript': case 'typescript': return 'const ok = await verify(token);\nif (!ok) return deny();';
-    case 'java': return 'if (balance >= amount) {\n    balance -= amount;\n}';
-    case 'cpp': return 'if (balance >= amount) {\n    balance -= amount;\n}';
     case 'pseudocode': return 'IF balance >= amount THEN\n    SUBTRACT amount FROM balance\nEND IF';
-    case 'sql': return 'UPDATE accounts SET balance = balance - :amt WHERE id = :id;';
     default: return 'Notes or code for this step…';
   }
 }
@@ -361,38 +357,4 @@ export function renderChecks(app) {
     app.store.select(i.nodes, []);
     app.setTab('code');
   }));
-}
-
-/* ---------------- hints pane ---------------- */
-export function renderHints(app) {
-  const pane = document.getElementById('pane-hints');
-  const on = app.store.doc.settings.hints;
-  const head = `<div class="row"><label style="flex:1 1 auto">Smart hints</label>${seg('hintsOn', [[1, 'On'], [0, 'Off']], on ? 1 : 0)}</div>
-    <p class="muted" style="font-size:11.5px;margin:0 0 10px">Hints look at the shape of your flow and suggest the next step. They never change anything until you click Apply.</p>`;
-  let body;
-  if (!on) body = `<div class="empty-note">Hints are off. Turn them on above, or press <kbd>Shift</kbd>+<kbd>H</kbd>.</div>`;
-  else if (!app.hints.length) body = `<div class="okbox">No suggestions right now — the flow reads as complete. Select a step to get ideas for what follows it.</div>`;
-  else body = `<div class="issues">${app.hints.map((hh, i) => `
-      <div class="issue sev-info" data-hint="${i}">
-        <b>${hh.icon ? esc(hh.icon) + ' ' : ''}${esc(hh.title)}</b>
-        <p>${esc(hh.why)}</p>
-        <div class="seg" style="margin-top:7px">
-          ${hh.apply ? `<button class="btn primary" data-applyhint="${i}">Apply</button>` : ''}
-          <button class="btn" data-dismiss="${hh.id}">Dismiss</button>
-        </div>
-      </div>`).join('')}</div>`;
-  pane.innerHTML = head + body + (app.dismissed.size ? `<div class="seg" style="margin-top:10px"><button class="btn" data-act="resetHints">Bring back ${app.dismissed.size} dismissed hint${app.dismissed.size > 1 ? 's' : ''}</button></div>` : '');
-  pane.querySelectorAll('[data-seg]').forEach((b) => b.addEventListener('click', () => {
-    app.store.commit('Smart hints', (d) => { d.settings.hints = b.dataset.v === '1'; });
-    app.refreshChrome();
-    app.recomputeHints();
-  }));
-  pane.querySelectorAll('[data-applyhint]').forEach((b) => b.addEventListener('click', () => app.applyHint(app.hints[Number(b.dataset.applyhint)])));
-  pane.querySelectorAll('[data-dismiss]').forEach((b) => b.addEventListener('click', () => app.dismissHint(b.dataset.dismiss)));
-  pane.querySelectorAll('[data-hint]').forEach((el) => el.addEventListener('click', (ev) => {
-    if (ev.target.closest('button')) return;
-    const hh = app.hints[Number(el.dataset.hint)];
-    if (hh?.nodes?.length) app.store.select(hh.nodes, []);
-  }));
-  pane.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => app.panelAction(b.dataset.act)));
 }

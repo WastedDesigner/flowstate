@@ -17,8 +17,9 @@ export const SHAPES = {
   delay:    { label: 'Delay',     role: 'step',     size: [156, 66],  text: [.06, .12, .76, .76] },
   connector:{ label: 'Connector', role: 'connector',size: [60, 60],   text: [.1, .1, .8, .8] },
   note:     { label: 'Note',      role: 'note',     size: [170, 72],  text: [.1, .1, .82, .8] },
+  lane:     { label: 'Swimlane',  role: 'lane',     size: [640, 240], text: [.02, 0, .96, .14] },
 };
-export const SHAPE_ORDER = ['start', 'process', 'decision', 'io', 'end', 'subroutine', 'data', 'document', 'manual', 'delay', 'connector', 'note'];
+export const SHAPE_ORDER = ['start', 'process', 'decision', 'io', 'end', 'subroutine', 'data', 'document', 'manual', 'delay', 'connector', 'note', 'lane'];
 export const TERMINALS = new Set(['start', 'end']);
 
 /** SVG path data for a shape. */
@@ -53,6 +54,8 @@ export function shapePath(type, w, h, radius = 10) {
     }
     case 'note':
       return rr(0, 0, w, h, Math.min(radius, 8));
+    case 'lane':
+      return rr(0, 0, w, h, 14);
     case 'subroutine':
     case 'process':
     default:
@@ -70,6 +73,7 @@ export function shapeDecor(type, w, h) {
     const ry = Math.min(h * .18, 18);
     return [`M0,${ry}A${w / 2},${ry} 0 0 0 ${w},${ry}`];
   }
+  if (type === 'lane') { const hh = Math.min(34, h * .3); return [`M0,0H${w}V${hh}H0Z`]; }
   if (type === 'note') {
     return [`M0,0h${Math.min(10, w * .08)}`, `M0,${h}h${Math.min(10, w * .08)}`];
   }
@@ -78,6 +82,7 @@ export function shapeDecor(type, w, h) {
 
 /** Inner rectangle available for the label. */
 export function textBox(type, w, h) {
+  if (type === 'lane') return { x: 14, y: 2, w: Math.max(40, w - 28), h: 30 };
   const t = (SHAPES[type] || SHAPES.process).text;
   return { x: w * t[0], y: h * t[1], w: w * t[2], h: h * t[3] };
 }

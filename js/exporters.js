@@ -1,15 +1,8 @@
-// Export: standalone SVG, PNG, JPG, PDF (single page, no third-party libraries).
+// Export: standalone SVG, PNG and JPG (no third-party libraries), plus JSON backups.
 import { docBounds, THEMES, toFile } from './model.js';
 import { download } from './util.js';
 
 const XMLNS = 'http://www.w3.org/2000/svg';
-
-export const PAGES = {
-  fit: { label: 'Fit to drawing' },
-  a4: { label: 'A4 (210 × 297 mm)', w: 595.28, h: 841.89 },
-  a3: { label: 'A3 (297 × 420 mm)', w: 841.89, h: 1190.55 },
-  letter: { label: 'US Letter (8.5 × 11 in)', w: 612, h: 792 },
-};
 
 function bgColor(doc, mode) {
   if (mode === 'transparent') return null;
@@ -125,70 +118,6 @@ export async function exportRaster(renderer, doc, opts) {
   download(blob, safeName(doc.name) + '.' + fmt);
   return { bytes: blob.size, w: canvas.width, h: canvas.height };
 }
-export async function exportPdf(renderer, doc, opts) {
-  const bgMode = opts.background === 'transparent' ? 'white' : opts.background;
-  const { markup, bounds } = buildSvg(renderer, doc, { ...opts, background: bgMode });
-  const canvas = await toCanvas(markup, bounds, { scale: opts.scale, flatten: bgColor(doc, bgMode) || '#ffffff' });
-  const dataUrl = canvas.toDataURL('image/jpeg', opts.quality ?? 0.92);
-  const bin = atob(dataUrl.slice(dataUrl.indexOf(',') + 1));
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-
-  const spec = PAGES[opts.page] || PAGES.fit;
-  const margin = opts.page === 'fit' ? 0 : (opts.margin ?? 28);
-  let pw, ph;
-  if (opts.page === 'fit') {
-    pw = Math.max(36, bounds.w * 0.75); ph = Math.max(36, bounds.h * 0.75);
-  } else {
-    const landscape = opts.orientation === 'landscape' || (opts.orientation === 'auto' && bounds.w > bounds.h);
-    pw = landscape ? spec.h : spec.w;
-    ph = landscape ? spec.w : spec.h;
-  }
-  const blob = pdfFromJpeg(bytes, canvas.width, canvas.height, { w: pw, h: ph, margin }, doc.name);
-  download(blob, safeName(doc.name) + '.pdf');
-  return { bytes: blob.size, page: `${Math.round(pw)} × ${Math.round(ph)} pt` };
-}
-
-/** Minimal single-page PDF wrapping one JPEG. */
-export function pdfFromJpeg(jpeg, imgW, imgH, page, title = 'Flowchart') {
-  const enc = new TextEncoder();
-  const parts = [];
-  let len = 0;
-  const put = (d) => { const b = typeof d === 'string' ? enc.encode(d) : d; parts.push(b); len += b.length; };
-  const offs = {};
-  put('%PDF-1.4\n');
-  put(new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]));
-
-  const m = page.margin || 0;
-  const s = Math.min((page.w - 2 * m) / imgW, (page.h - 2 * m) / imgH);
-  const dw = imgW * s, dh = imgH * s;
-  const dx = (page.w - dw) / 2, dy = (page.h - dh) / 2;
-  const content = `q\n${dw.toFixed(3)} 0 0 ${dh.toFixed(3)} ${dx.toFixed(3)} ${dy.toFixed(3)} cm\n/Im0 Do\nQ\n`;
-  const pdfStr = (t) => '(' + String(t).replace(/[\\()]/g, (c) => '\\' + c).replace(/[^\x20-\x7e]/g, '') + ')';
-
-  const simple = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${page.w.toFixed(2)} ${page.h.toFixed(2)}] /Resources << /XObject << /Im0 5 0 R >> /ProcSet [/PDF /ImageC] >> /Contents 4 0 R >>`,
-  ];
-  simple.forEach((body, i) => { offs[i + 1] = len; put(`${i + 1} 0 obj\n${body}\nendobj\n`); });
-  offs[4] = len;
-  put(`4 0 obj\n<< /Length ${enc.encode(content).length} >>\nstream\n${content}endstream\nendobj\n`);
-  offs[5] = len;
-  put(`5 0 obj\n<< /Type /XObject /Subtype /Image /Width ${imgW} /Height ${imgH} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`);
-  put(jpeg);
-  put('\nendstream\nendobj\n');
-  offs[6] = len;
-  put(`6 0 obj\n<< /Title ${pdfStr(title)} /Producer (FlowState) /Creator (FlowState) >>\nendobj\n`);
-
-  const xref = len;
-  let x = 'xref\n0 7\n0000000000 65535 f \n';
-  for (let i = 1; i <= 6; i++) x += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
-  x += `trailer\n<< /Size 7 /Root 1 0 R /Info 6 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  put(x);
-  return new Blob(parts, { type: 'application/pdf' });
-}
-
 /* ---------- JSON backup ---------- */
 export function exportJson(doc) {
   const payload = JSON.stringify(toFile(doc), null, 2);
@@ -196,37 +125,9 @@ export function exportJson(doc) {
   return { bytes: payload.length };
 }
 
-/* ---------- share link ---------- */
-export async function makeShareLink(doc) {
-  const json = JSON.stringify(toFile(doc));
-  let payload, tag = 'j';
-  if (typeof CompressionStream === 'function') {
-    const cs = new CompressionStream('deflate-raw');
-    const buf = await new Response(new Blob([json]).stream().pipeThrough(cs)).arrayBuffer();
-    payload = new Uint8Array(buf); tag = 'z';
-  } else {
-    payload = new TextEncoder().encode(json);
-  }
-  let bin = '';
-  const CH = 0x8000;
-  for (let i = 0; i < payload.length; i += CH) bin += String.fromCharCode.apply(null, payload.subarray(i, i + CH));
-  const b = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  return location.origin + location.pathname + '#' + tag + ':' + b;
-}
-export async function readShareHash(hash) {
-  const raw = hash.replace(/^#/, '');
-  const i = raw.indexOf(':');
-  if (i < 0) return null;
-  const tag = raw.slice(0, i);
-  let b = raw.slice(i + 1).replace(/-/g, '+').replace(/_/g, '/');
-  while (b.length % 4) b += '=';
-  const bin = atob(b);
-  const bytes = new Uint8Array(bin.length);
-  for (let j = 0; j < bin.length; j++) bytes[j] = bin.charCodeAt(j);
-  if (tag === 'z') {
-    const ds = new DecompressionStream('deflate-raw');
-    const buf = await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();
-    return new TextDecoder().decode(buf);
-  }
-  return new TextDecoder().decode(bytes);
+/** Every saved project in one file. */
+export function exportBundle(docs) {
+  const payload = JSON.stringify({ kind: 'flowstate.bundle', version: 1, exportedAt: new Date().toISOString(), docs: docs.map(toFile) }, null, 2);
+  download(new Blob([payload], { type: 'application/json' }), 'flowstate-all-projects.json');
+  return { bytes: payload.length, count: docs.length };
 }

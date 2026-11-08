@@ -9,52 +9,37 @@ export const MIN_READABLE = 1;         // oldest schema we can still read
 
 /* ---------------- themes ---------------- */
 export const THEMES = {
-  classic: {
-    label: 'Classic', bg: '#f7f9fc', grid: '#dde6f1', edge: '#58647a', ink: '#17202e',
-    font: 'Inter, -apple-system, sans-serif', fontSize: 14,
-    roles: {
-      step: ['#ffffff', '#9fb0c6'], branch: ['#fff6e2', '#dfa636'], start: ['#e3f7ec', '#3fa96d'],
-      end: ['#fdeaea', '#d4544f'], io: ['#eef2ff', '#7a90d8'], data: ['#f3ecff', '#9a79d4'],
-      note: ['#fffceb', '#d6c266'], connector: ['#ffffff', '#9fb0c6'],
-    },
-  },
-  blueprint: {
-    label: 'Blueprint', bg: '#0e2a46', grid: '#1b4068', edge: '#8fc3f2', ink: '#eaf4ff',
-    font: '"Trebuchet MS", Inter, sans-serif', fontSize: 14,
-    roles: {
-      step: ['#14395c', '#6fa8d6'], branch: ['#13455c', '#5fd0d0'], start: ['#0f4a44', '#4fd1a5'],
-      end: ['#4a1f2a', '#f08a8a'], io: ['#1a3a6a', '#7f9ff0'], data: ['#2b2f66', '#9a9cf0'],
-      note: ['#143047', '#5d82a3'], connector: ['#14395c', '#6fa8d6'],
-    },
-  },
   midnight: {
-    label: 'Midnight', bg: '#111622', grid: '#1e2635', edge: '#8c9ab2', ink: '#e9edf5',
+    label: 'Midnight', ui: '#111622', bg: '#111622', grid: '#1e2635', edge: '#8c9ab2', ink: '#e9edf5', darkText: '#e9edf5',
     font: 'Inter, -apple-system, sans-serif', fontSize: 14,
     roles: {
       step: ['#1b2431', '#4a5a72'], branch: ['#30260f', '#d2a53c'], start: ['#102b20', '#3fbf7f'],
       end: ['#30161a', '#f4685f'], io: ['#16253f', '#5b8cff'], data: ['#221a36', '#a07ae0'],
-      note: ['#24220f', '#b7a94c'], connector: ['#1b2431', '#4a5a72'],
+      note: ['#24220f', '#b7a94c'], connector: ['#1b2431', '#4a5a72'], lane: ['#ffffff0a', '#4a5a72'],
     },
   },
-  pastel: {
-    label: 'Pastel', bg: '#fdf7f3', grid: '#f0e3d8', edge: '#8a7a70', ink: '#3b2f2a',
-    font: 'Verdana, Geneva, sans-serif', fontSize: 13,
+  light: {
+    label: 'Light', ui: '#f4f6fa', bg: '#f7f9fc', grid: '#dde6f1', edge: '#58647a', ink: '#17202e', darkText: '#17202e',
+    font: 'Inter, -apple-system, sans-serif', fontSize: 14,
     roles: {
-      step: ['#ffffff', '#d8c3b4'], branch: ['#ffeede', '#e2a46d'], start: ['#e6f6e9', '#79bf8c'],
-      end: ['#ffe8e8', '#dd8b8b'], io: ['#e8f1fb', '#8fb3d9'], data: ['#f1e9f8', '#b094cd'],
-      note: ['#fff8dc', '#d9c68a'], connector: ['#ffffff', '#d8c3b4'],
+      step: ['#ffffff', '#9fb0c6'], branch: ['#fff6e2', '#dfa636'], start: ['#e3f7ec', '#3fa96d'],
+      end: ['#fdeaea', '#d4544f'], io: ['#eef2ff', '#7a90d8'], data: ['#f3ecff', '#9a79d4'],
+      note: ['#fffceb', '#d6c266'], connector: ['#ffffff', '#9fb0c6'], lane: ['#5b8cff0d', '#9fb0c6'],
     },
   },
-  mono: {
-    label: 'Mono', bg: '#ffffff', grid: '#ebebeb', edge: '#222222', ink: '#111111',
-    font: 'Georgia, "Times New Roman", serif', fontSize: 14,
+  wasted: {
+    label: 'Wasted Designer', ui: '#060606', bg: '#000000', grid: '#1a1a1a', edge: '#c8ff00', ink: '#eae7df', darkText: '#060606',
+    font: 'Inter, -apple-system, sans-serif', fontSize: 14,
     roles: {
-      step: ['#ffffff', '#111111'], branch: ['#f4f4f4', '#111111'], start: ['#111111', '#111111'],
-      end: ['#111111', '#111111'], io: ['#f8f8f8', '#111111'], data: ['#f0f0f0', '#111111'],
-      note: ['#fafafa', '#777777'], connector: ['#ffffff', '#111111'],
+      step: ['#111111', '#c8ff00'], branch: ['#181818', '#eae7df'], start: ['#c8ff00', '#c8ff00'],
+      end: ['#eae7df', '#eae7df'], io: ['#111111', '#92978d'], data: ['#111111', '#92978d'],
+      note: ['#181818', '#5c6058'], connector: ['#111111', '#c8ff00'], lane: ['#c8ff000a', '#3a3f2e'],
     },
   },
 };
+/** Names used by older backups map onto the three current themes. */
+export const LEGACY_THEMES = { classic: 'light', pastel: 'light', mono: 'light', blueprint: 'midnight' };
+export const themeKey = (k) => (THEMES[k] ? k : LEGACY_THEMES[k] || 'midnight');
 export const THEME_KEYS = Object.keys(THEMES);
 
 function roleOf(type) {
@@ -64,6 +49,7 @@ function roleOf(type) {
   if (type === 'data' || type === 'document' || type === 'subroutine') return 'data';
   if (type === 'note') return 'note';
   if (type === 'connector') return 'connector';
+  if (type === 'lane') return 'lane';
   return 'step';
 }
 /** Default visual style for a node type under a theme. */
@@ -73,9 +59,9 @@ export function themeNodeStyle(themeKey, type) {
   const darkFill = isDark(fill);
   return {
     fill, stroke, strokeWidth: 2, radius: 10,
-    textColor: themeKey === 'mono' && (type === 'start' || type === 'end') ? '#ffffff' : (darkFill ? '#f2f5fa' : t.ink),
-    fontFamily: t.font, fontSize: t.fontSize, fontWeight: type === 'start' || type === 'end' ? 600 : 400,
-    fontStyle: 'normal', align: 'center', dash: 'none',
+    textColor: darkFill ? '#f2f5fa' : t.darkText,
+    fontFamily: t.font, fontSize: t.fontSize, fontWeight: type === 'start' || type === 'end' || type === 'lane' ? 600 : 400,
+    fontStyle: 'normal', align: type === 'lane' ? 'left' : 'center', dash: 'none',
   };
 }
 export function themeEdgeStyle(themeKey) {
@@ -100,10 +86,6 @@ export const LANGS = [
   { id: 'python', label: 'Python', checks: ['delimiters', 'syntax', 'logic', 'structure'] },
   { id: 'javascript', label: 'JavaScript', checks: ['delimiters', 'syntax', 'logic', 'structure'] },
   { id: 'typescript', label: 'TypeScript', checks: ['delimiters', 'syntax', 'logic', 'structure'] },
-  { id: 'java', label: 'Java', checks: ['delimiters', 'syntax', 'structure'] },
-  { id: 'cpp', label: 'C++', checks: ['delimiters', 'syntax', 'structure'] },
-  { id: 'csharp', label: 'C#', checks: ['delimiters', 'syntax', 'structure'] },
-  { id: 'sql', label: 'SQL', checks: ['delimiters', 'structure'] },
   { id: 'other', label: 'Other / plain text', checks: [] },
 ];
 export const langLabel = (id) => (LANGS.find((l) => l.id === id) || LANGS[0]).label;
@@ -124,7 +106,7 @@ export const ARROWS = ['none', 'arrow', 'open', 'circle', 'diamond', 'bar'];
 /* ---------------- factories ---------------- */
 export function defaultSettings() {
   return {
-    theme: 'midnight', grid: true, snap: true, gridSize: 10, hints: true,
+    theme: 'midnight', grid: true, snap: true, gridSize: 10,
     autosave: true, defaultLang: 'python', edgeCurve: 'orthogonal', showCodeBadges: true,
   };
 }
@@ -366,7 +348,7 @@ function migrate(obj, v, warnings) {
     d = {
       kind: FILE_KIND, version: 2, id: d.id || uid('doc'), name: d.name || d.title || 'Imported flowchart',
       createdAt: d.createdAt || Date.now(), updatedAt: Date.now(),
-      settings: { ...defaultSettings(), theme: d.theme && THEMES[d.theme] ? d.theme : 'classic' },
+      settings: { ...defaultSettings(), theme: themeKey(d.theme) },
       nodes: d.nodes.map((n) => ({
         id: n.id, type: n.type || n.shape || 'process', x: n.x, y: n.y,
         w: n.w || n.width, h: n.h || n.height,
@@ -381,7 +363,7 @@ function migrate(obj, v, warnings) {
     v = 2;
   }
   if (v === 2) {
-    const theme = d.settings?.theme && THEMES[d.settings.theme] ? d.settings.theme : 'classic';
+    const theme = themeKey(d.settings?.theme);
     d = {
       kind: FILE_KIND, version: 3, id: d.id || uid('doc'), name: d.name || 'Imported flowchart',
       createdAt: d.createdAt || Date.now(), updatedAt: Date.now(),
@@ -413,7 +395,8 @@ function sanitize(d, errors, warnings) {
   if (!Array.isArray(d.edges)) { warnings.push('"edges" was missing; treated as an empty list.'); d.edges = []; }
 
   const settings = { ...defaultSettings(), ...(d.settings || {}) };
-  if (!THEMES[settings.theme]) { warnings.push(`Unknown theme "${settings.theme}"; using Classic.`); settings.theme = 'classic'; }
+  settings.theme = themeKey(settings.theme);
+  delete settings.hints;
   if (!LANGS.some((l) => l.id === settings.defaultLang)) settings.defaultLang = 'none';
   settings.gridSize = clamp(Number(settings.gridSize) || 10, 2, 100);
 
@@ -438,10 +421,11 @@ function sanitize(d, errors, warnings) {
       text: typeof raw.text === 'string' ? raw.text : String(raw.text ?? ''),
       style: { ...themeNodeStyle(settings.theme, type), ...(raw.style && typeof raw.style === 'object' ? raw.style : {}) },
       code: {
-        lang: LANGS.some((l) => l.id === raw.code?.lang) ? raw.code.lang : 'none',
+        lang: LANGS.some((l) => l.id === raw.code?.lang) ? raw.code.lang : (raw.code?.source ? 'other' : 'none'),
         source: typeof raw.code?.source === 'string' ? raw.code.source : '',
       },
     };
+    if (typeof raw.group === 'string' && raw.group) n.group = raw.group;
     nodes.push(n);
   }
   if (!nodes.length) errors.push('The file contains no usable steps.');

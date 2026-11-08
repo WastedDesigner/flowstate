@@ -16,6 +16,8 @@ export class Interactions {
     this.armed = null;          // shape type queued from the palette
     this.spaceDown = false;
     this.mode = 'idle';
+    this.pointers = new Map();     // active touch points, for pinch zoom
+    this.lastTap = null;
     this.bind();
   }
 
@@ -79,6 +81,14 @@ export class Interactions {
   down(e) {
     if (e.button === 2) return;
     this.svg.focus({ preventScroll: true });
+    if (e.pointerType === 'touch') {
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pointers.size === 2) return this.startPinch();
+      if (this.pointers.size > 2) return;
+      const now = performance.now(), t = this.lastTap;
+      if (t && now - t.t < 320 && Math.hypot(e.clientX - t.x, e.clientY - t.y) < 28) { this.lastTap = null; this.dbl(e); return; }
+      this.lastTap = { t: now, x: e.clientX, y: e.clientY };
+    }
     const p = this.pt(e);
     const hit = this.hit(e);
 
@@ -97,8 +107,11 @@ export class Interactions {
     if (hit.node) {
       const id = hit.node.dataset.id;
       if (this.tool === 'connect') return this.startLink(e, id, 'auto');
-      if (e.shiftKey || (e.metaKey && !e.ctrlKey && false)) this.store.toggleNode(id);
-      else if (!this.store.selNodes.has(id)) this.store.select([id], []);
+      const ids = this.expand([id]);
+      if (e.shiftKey) {
+        const on = this.store.selNodes.has(id);
+        this.store.select(on ? [...this.store.selNodes].filter((x) => !ids.includes(x)) : [...this.store.selNodes, ...ids], []);
+      } else if (!this.store.selNodes.has(id)) this.store.select(ids, []);
       if (this.store.selNodes.has(id)) this.startDrag(e);
       return;
     }
@@ -107,12 +120,33 @@ export class Interactions {
       this.store.select([], [id], e.shiftKey);
       return;
     }
-    // empty canvas
+    // empty canvas: a finger pans, a mouse draws a selection box
     if (!e.shiftKey) this.store.clearSelection();
+    if (e.pointerType === 'touch') return this.startPan(e);
     this.mode = 'marquee';
     this.start = p;
     this.baseSel = new Set(this.store.selNodes);
     this.deferCapture(e);
+  }
+
+  /** Selecting one member of a group selects the whole group. */
+  expand(ids) {
+    const d = this.store.doc, groups = new Set();
+    for (const id of ids) { const n = nodeById(d, id); if (n?.group) groups.add(n.group); }
+    if (!groups.size) return ids;
+    return [...new Set([...ids, ...d.nodes.filter((n) => groups.has(n.group)).map((n) => n.id)])];
+  }
+
+  startPinch() {
+    if (this.mode === 'drag' || this.mode === 'resize') this.store.cancelGesture();
+    this.r.guides([]); this.r.marquee(null); this.r.linkPreview(null); this.r.dropTarget(null);
+    this._pendingCapture = null;
+    this.svg.classList.remove('panning');
+    const [a, b] = [...this.pointers.values()];
+    const c = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const vp = this.store.viewport, r = this.svg.getBoundingClientRect();
+    this.mode = 'pinch';
+    this.pinch = { d: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), k: vp.k, wx: (c.x - r.left - vp.x) / vp.k, wy: (c.y - r.top - vp.y) / vp.k };
   }
 
   startPan(e) {
@@ -128,8 +162,17 @@ export class Interactions {
     this.mode = 'drag';
     this.start = this.pt(e);
     this.store.beginGesture();
-    this.dragNodes = this.store.selectedNodes().map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h }));
-    this.others = this.store.doc.nodes.filter((n) => !this.store.selNodes.has(n.id));
+    const sel = this.store.selectedNodes(), carried = [];
+    for (const l of sel.filter((n) => n.type === 'lane')) {   // a swimlane carries what sits inside it
+      for (const n of this.store.doc.nodes) {
+        const cx = n.x + n.w / 2, cy = n.y + n.h / 2;
+        if (n.type !== 'lane' && !this.store.selNodes.has(n.id) && !carried.includes(n) && cx >= l.x && cx <= l.x + l.w && cy >= l.y && cy <= l.y + l.h) carried.push(n);
+      }
+    }
+    const moving = [...sel, ...carried];
+    this.dragNodes = moving.map((n) => ({ id: n.id, x: n.x, y: n.y, w: n.w, h: n.h }));
+    const movingIds = new Set(moving.map((n) => n.id));
+    this.others = this.store.doc.nodes.filter((n) => !movingIds.has(n.id) && n.type !== 'lane');
     this.moved = false;
     this.deferCapture(e);
   }
@@ -157,6 +200,18 @@ export class Interactions {
 
   /* ---------------- pointer move ---------------- */
   move(e) {
+    if (e.pointerType === 'touch' && this.pointers.has(e.pointerId)) this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (this.mode === 'pinch') {
+      const [a, b] = [...this.pointers.values()];
+      if (!a || !b) return;
+      const c = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const st = this.pinch, vp = this.store.viewport, r = this.svg.getBoundingClientRect();
+      vp.k = clamp(st.k * Math.hypot(a.x - b.x, a.y - b.y) / st.d, 0.08, 6);
+      vp.x = c.x - r.left - st.wx * vp.k;
+      vp.y = c.y - r.top - st.wy * vp.k;
+      this.r.applyViewport();
+      return;
+    }
     const p = this.pt(e);
     if (this.mode === 'idle') {
       const hit = this.hit(e);
@@ -177,8 +232,10 @@ export class Interactions {
         w: Math.abs(p.x - this.start.x), h: Math.abs(p.y - this.start.y),
       };
       this.r.marquee(r);
-      const inside = this.store.doc.nodes.filter((n) => n.x < r.x + r.w && n.x + n.w > r.x && n.y < r.y + r.h && n.y + n.h > r.y);
-      this.store.select([...this.baseSel, ...inside.map((n) => n.id)], [], false);
+      const inside = this.store.doc.nodes.filter((n) => (n.type === 'lane'
+        ? n.x >= r.x && n.x + n.w <= r.x + r.w && n.y >= r.y && n.y + n.h <= r.y + r.h
+        : n.x < r.x + r.w && n.x + n.w > r.x && n.y < r.y + r.h && n.y + n.h > r.y));
+      this.store.select(this.expand([...this.baseSel, ...inside.map((n) => n.id)]), [], false);
       return;
     }
     if (this.mode === 'drag') {
@@ -243,7 +300,7 @@ export class Interactions {
     const ns = this.store.doc.nodes;
     for (let i = ns.length - 1; i >= 0; i--) {
       const n = ns[i];
-      if (n.type === 'note') continue;
+      if (n.type === 'note' || n.type === 'lane') continue;
       if (p.x >= n.x - 2 && p.x <= n.x + n.w + 2 && p.y >= n.y - 2 && p.y <= n.y + n.h + 2) {
         if (n.id === exceptId) return null;
         return n;
@@ -296,6 +353,13 @@ export class Interactions {
 
   /* ---------------- pointer up ---------------- */
   up(e) {
+    if (e.pointerType === 'touch') {
+      this.pointers.delete(e.pointerId);
+      if (this.mode === 'pinch') {
+        if (this.pointers.size < 2) { this.mode = 'idle'; this.store.emit('viewport'); }
+        return;
+      }
+    }
     const mode = this.mode;
     this.mode = 'idle';
     this._pendingCapture = null;
@@ -325,6 +389,9 @@ export class Interactions {
 
   /* ---------------- other gestures ---------------- */
   dbl(e) {
+    const now = performance.now();
+    if (now - (this._dblAt || 0) < 500) return;       // a touch double-tap can raise both paths
+    this._dblAt = now;
     const hit = this.hit(e);
     if (hit.node) { this.app.editNodeText(hit.node.dataset.id); return; }
     if (hit.edge) { this.app.editEdgeLabel(hit.edge.dataset.id); return; }

@@ -1,28 +1,83 @@
-// Python source -> flowchart. Handles if/elif/else, while, for, def (first one), input/print as I/O, return.
-// Anything else on a line becomes a Process step. try/with/class headers become a step with their body inlined.
+// Python / JavaScript source -> flowchart. Handles if/elif/else, while, for, def/function (first one),
+// break/continue as real jumps, input/print as I/O, return. Anything else becomes a Process step.
 import { newDoc, newNode, newEdge } from './model.js';
 import { SHAPES } from './shapes.js';
-import { measure, fontString, wrapText } from './util.js';
+import { measure, fontString, wrapText, clamp } from './util.js';
 
-/** Grow a step (about its centre) until its text fits; never shrinks a size the user chose. */
-export function fitNode(n) {
+/** Grow a step (about its centre) until its text fits. With `tight` it also shrinks to a snug size. */
+export function fitNode(n, tight = false) {
+  if (n.type === 'lane') return false;
   const st = n.style || {}, font = fontString(st), t = (SHAPES[n.type] || SHAPES.process).text;
-  const pad = 10, lh = (st.fontSize || 14) * 1.3;
-  const word = Math.max(0, ...String(n.text).split(/\s+/).map((s) => measure(s, font)));
-  const w = Math.max(n.w, Math.ceil((word + pad) / t[2]));
-  const lines = wrapText(n.text, Math.max(w * t[2], 16), font).length;
-  const hh = Math.max(n.h, Math.ceil((lines * lh + pad) / t[3]));
+  const pad = 10, lh = (st.fontSize || 14) * 1.3, text = String(n.text);
+  const word = Math.max(0, ...text.split(/\s+/).map((s) => measure(s, font)));
+  let w0 = n.w, h0 = n.h;
+  if (tight) {
+    const longest = Math.max(0, ...text.split('\n').map((s) => measure(s, font)));
+    w0 = clamp(Math.ceil((longest + pad + 6) / t[2]), 90, 260);
+    h0 = 40;
+  }
+  const w = Math.max(w0, Math.ceil((word + pad) / t[2]));
+  const lines = wrapText(text, Math.max(w * t[2], 16), font).length;
+  const hh = Math.max(h0, Math.ceil((lines * lh + pad) / t[3]));
   if (w === n.w && hh === n.h) return false;
   n.x -= (w - n.w) / 2; n.y -= (hh - n.h) / 2; n.w = w; n.h = hh;
   return true;
 }
 
-/* ---------- parse: indentation -> statement tree ---------- */
-function parse(src) {
-  const lines = [];
-  // shortcut: a '#' inside a string literal is treated as a comment start; upgrade if that bites
+/* ---------- source clean-up ---------- */
+/** Drop a trailing comment without touching a comment marker that sits inside a string. */
+function stripComment(line, lang) {
+  let q = null;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) { if (c === '\\') i++; else if (c === q) q = null; continue; }
+    if (c === '"' || c === "'" || (lang === 'js' && c === '`')) { q = c; continue; }
+    if (lang === 'py' ? c === '#' : (c === '/' && line[i + 1] === '/')) return line.slice(0, i);
+  }
+  return line;
+}
+
+/** Rewrite brace-style JavaScript as indented, Python-shaped lines so one parser serves both. */
+function jsToIndented(src) {
+  const out = [];
+  let depth = 0;
   for (const raw of src.replace(/\t/g, '    ').split('\n')) {
-    const t = raw.replace(/\s+#.*$/, '').replace(/^\s*#.*$/, '').replace(/\s+$/, '');
+    let t = stripComment(raw, 'js').trim();
+    if (!t) continue;
+    let closers = 0;
+    while (t.startsWith('}')) { closers++; t = t.slice(1).trim(); }
+    depth = Math.max(0, depth - closers);
+    t = t.replace(/;+\s*$/, '');
+    if (!t) continue;
+    const opens = t.endsWith('{');
+    if (opens) t = t.slice(0, -1).trim();
+    if (opens) {
+      let m;
+      if ((m = /^else\s+if\s*\((.*)\)$/.exec(t))) t = `elif ${m[1]}:`;
+      else if (t === 'else') t = 'else:';
+      else if ((m = /^if\s*\((.*)\)$/.exec(t))) t = `if ${m[1]}:`;
+      else if ((m = /^while\s*\((.*)\)$/.exec(t))) t = `while ${m[1]}:`;
+      else if ((m = /^for\s*\((.*)\)$/.exec(t))) t = `for ${m[1].replace(/^(const|let|var)\s+/, '')}:`;
+      else if ((m = /^(?:async\s+)?function\s*\*?\s*(\w+)\s*\((.*)\)$/.exec(t))) t = `def ${m[1]}(${m[2]}):`;
+      else if ((m = /^(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?\((.*)\)\s*=>$/.exec(t))) t = `def ${m[1]}(${m[2]}):`;
+      else if (/^(try|finally)$/.test(t)) t += ':';
+      else if (/^catch\b/.test(t)) t = t.replace(/^catch\s*/, 'except ') + ':';
+      else t += ':';
+    }
+    out.push(' '.repeat(depth * 4) + t);
+    if (opens) depth++;
+  }
+  return out.join('\n');
+}
+
+/* ---------- parse: indentation -> statement tree ---------- */
+const IO = /\b(input|print|console\.log|prompt|alert)\s*\(/;
+
+function parse(src, lang) {
+  const lines = [];
+  const text = lang === 'js' ? jsToIndented(src) : src.replace(/\t/g, '    ').split('\n').map((l) => stripComment(l, 'py')).join('\n');
+  for (const raw of text.split('\n')) {
+    const t = raw.replace(/\s+$/, '');
     if (t.trim()) lines.push({ ind: t.length - t.trimStart().length, text: t.trim() });
   }
   let i = 0;
@@ -30,9 +85,13 @@ function parse(src) {
   function block(ind) {
     const out = [];
     while (i < lines.length && lines[i].ind >= ind) {
-      const { text } = lines[i++];
-      const m = /^(if|elif|else|while|for|def|try|except|finally|with|class)\b(.*):$/.exec(text);
-      if (!m) { out.push({ t: 'step', text, io: /\b(input|print)\s*\(/.test(text), ret: /^return\b/.test(text) }); continue; }
+      const { text: tx } = lines[i++];
+      const m = /^(if|elif|else|while|for|def|try|except|finally|with|class)\b(.*):$/.exec(tx);
+      if (!m) {
+        const jump = /^(break|continue)\b/.exec(tx);
+        out.push({ t: 'step', text: tx, io: IO.test(tx), ret: /^return\b/.test(tx), jump: jump ? jump[1] : null });
+        continue;
+      }
       const [, kw, rest] = m, ind0 = lines[i - 1].ind, head = rest.trim();
       if (kw === 'if') {
         const node = { t: 'if', cond: head, then: bodyOf(ind0), else: [] };
@@ -46,8 +105,8 @@ function parse(src) {
         out.push(node);
       } else if (kw === 'while' || kw === 'for') out.push({ t: 'loop', kw, cond: head, body: bodyOf(ind0) });
       else if (kw === 'def') out.push({ t: 'def', name: head, body: bodyOf(ind0) });
-      else if (kw === 'elif' || kw === 'else') out.push({ t: 'step', text, io: false, ret: false });
-      else { out.push({ t: 'step', text: text.slice(0, -1), io: false, ret: false }, ...bodyOf(ind0)); }
+      else if (kw === 'elif' || kw === 'else') out.push({ t: 'step', text: tx, io: false, ret: false });
+      else out.push({ t: 'step', text: tx.slice(0, -1), io: false, ret: false }, ...bodyOf(ind0));
     }
     return out;
   }
@@ -57,11 +116,12 @@ function parse(src) {
 /* ---------- build nodes, then lay out ---------- */
 const GAP_Y = 56, GAP_X = 50;
 // the code linter wants a comparison in a decision's code, so bare names like `not done` are left unattached
-const HAS_TEST = /[<>=]|\b(in|is)\b/;
+const HAS_TEST = /[<>=]|\b(in|is|of)\b/;
 const short = (s) => (s.length > 46 ? s.slice(0, 45) + '…' : s);
 
-export function codeToDoc(src, settings, name = 'From code') {
-  let tree = parse(src);
+/** @param {'py'|'js'} lang */
+export function codeToDoc(src, settings, name = 'From code', lang = 'py') {
+  let tree = parse(src, lang);
   const warnings = [];
   const defs = tree.filter((s) => s.t === 'def');
   let startText = 'Start';
@@ -74,9 +134,10 @@ export function codeToDoc(src, settings, name = 'From code') {
 
   const doc = newDoc(name);
   doc.settings = { ...doc.settings, ...settings };
+  const codeLang = lang === 'js' ? 'javascript' : 'python';
   const mk = (type, text, code) => {
     const n = newNode(type, 0, 0, doc.settings, short(text));
-    n.code = { lang: code ? 'python' : 'none', source: code || '' };
+    n.code = { lang: code ? codeLang : 'none', source: code || '' };
     fitNode(n);
     doc.nodes.push(n);
     return n;
@@ -112,6 +173,7 @@ export function codeToDoc(src, settings, name = 'From code') {
   }
 
   const rets = [];
+  const loops = [];          // innermost loop last: where break / continue jump to
   const join = (pend, n) => {
     for (const p of pend) edges.push([p.n.id, n.id, p.label || '', p.port, p.tp || (p.label ? 'n' : undefined)]);
   };
@@ -125,17 +187,31 @@ export function codeToDoc(src, settings, name = 'From code') {
       if (s.t === 'step') {
         y = below; pend = [{ n }];
         if (s.ret) { rets.push(n); pend = []; }
+        else if (s.jump && loops.length) {
+          const L = loops[loops.length - 1];
+          if (s.jump === 'continue') edges.push([n.id, L.n.id, '', 'e', 'n']);
+          else L.breaks.push(n);
+          pend = [];
+        }
       } else if (s.t === 'if' && s.else.length) {
         const a = ext(s.then), c = ext(s.else);
         const T = place(s.then, cx - GAP_X / 2 - a.r, below, [{ n, port: 'w', label: 'Yes', tp: 'n' }]);
         const E = place(s.else, cx + GAP_X / 2 + c.l, below, [{ n, port: 'e', label: 'No', tp: 'n' }]);
         y = Math.max(T.y, E.y); pend = [...T.pend, ...E.pend];
       } else {
-        const body = s.t === 'if' ? s.then : s.body, side = ext(body);
+        const isLoop = s.t === 'loop';
+        const body = isLoop ? s.body : s.then, side = ext(body);
+        const L = { n, breaks: [] };
+        if (isLoop) loops.push(L);
         const B = place(body, cx + n.w / 2 + GAP_X + side.l, y, [{ n, port: 'e', label: 'Yes', tp: 'w' }]);
-        if (s.t === 'loop') for (const p of B.pend) edges.push([p.n.id, n.id, p.label || '', p.port || 'e', 'n']);
+        if (isLoop) {
+          loops.pop();
+          for (const p of B.pend) edges.push([p.n.id, n.id, p.label || '', p.port || 'e', 'n']);
+        }
         y = Math.max(B.y, below);
-        pend = s.t === 'loop' ? [{ n, port: 's', label: 'No' }] : [...B.pend, { n, port: 's', label: 'No' }];
+        pend = isLoop
+          ? [{ n, port: 's', label: 'No' }, ...L.breaks.map((x) => ({ n: x, port: 's' }))]
+          : [...B.pend, { n, port: 's', label: 'No' }];
       }
     }
     return { y, pend };
@@ -157,6 +233,5 @@ export function codeToDoc(src, settings, name = 'From code') {
     if (tp) e.toPort = tp;
     doc.edges.push(e);
   }
-  if (/\b(break|continue)\b/.test(src)) warnings.push('break and continue are shown as ordinary steps, not as jumps.');
   return { doc, warnings };
 }

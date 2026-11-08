@@ -8,7 +8,7 @@ const NO = /^(n|no|false|f|invalid|fail|0)\b/i;
 
 export function runChecks(doc) {
   const issues = [];
-  const nodes = doc.nodes.filter((n) => n.type !== 'note');
+  const nodes = doc.nodes.filter((n) => n.type !== 'note' && n.type !== 'lane');
   if (!nodes.length) return issues;
 
   const byId = new Map(doc.nodes.map((n) => [n.id, n]));

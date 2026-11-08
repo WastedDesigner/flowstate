@@ -154,6 +154,13 @@ export class Store {
       this.emit('saveerror', err);
     }
   }
+  /** Write a document that is not the open one (used when importing a bundle). */
+  putLocal(d) {
+    localStorage.setItem(LS_DOC(d.id), JSON.stringify(toFile(d)));
+    const list = this.index().filter((p) => p.id !== d.id);
+    list.unshift({ id: d.id, name: d.name, updatedAt: d.updatedAt, nodes: d.nodes.length, edges: d.edges.length });
+    this.writeIndex(list.slice(0, 60));
+  }
   loadLocal(id) {
     const raw = localStorage.getItem(LS_DOC(id));
     if (!raw) return null;
