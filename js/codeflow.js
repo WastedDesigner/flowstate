@@ -106,7 +106,7 @@ function parse(src, lang) {
       } else if (kw === 'while' || kw === 'for') out.push({ t: 'loop', kw, cond: head, body: bodyOf(ind0) });
       else if (kw === 'def') out.push({ t: 'def', name: head, body: bodyOf(ind0) });
       else if (kw === 'elif' || kw === 'else') out.push({ t: 'step', text: tx, io: false, ret: false });
-      else out.push({ t: 'step', text: tx.slice(0, -1), io: false, ret: false }, ...bodyOf(ind0));
+      else out.push({ t: 'step', text: tx.slice(0, -1), code: lang === 'js' ? '' : tx, io: false, ret: false }, ...bodyOf(ind0));
     }
     return out;
   }
@@ -147,7 +147,7 @@ export function codeToDoc(src, settings, name = 'From code', lang = 'py') {
   // pass 1: a node for every statement
   (function make(b) {
     for (const s of b) {
-      if (s.t === 'step') s.node = mk(s.io ? 'io' : 'process', s.text, s.text);
+      if (s.t === 'step') s.node = mk(s.io ? 'io' : 'process', s.text, s.code ?? s.text);
       else if (s.t === 'if') { s.node = mk('decision', s.cond + '?', HAS_TEST.test(s.cond) ? s.cond : ''); make(s.then); make(s.else); }
       else if (s.t === 'loop') {
         s.node = mk('decision', (s.kw === 'for' ? 'Next: ' : '') + s.cond + '?', s.kw === 'while' && HAS_TEST.test(s.cond) ? s.cond : '');

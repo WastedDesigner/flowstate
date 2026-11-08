@@ -174,7 +174,7 @@ function checkStructure(node, code, doc) {
   const out = [];
   const src = code.trim();
   if (!src) return out;
-  const branchy = /\b(if|elif|else|switch|case|when|while|until|unless|repeat)\b|[<>]=?|==|!=/.test(src);
+  const branchy = /\b(if|elif|else|switch|case|when|while|until|unless|repeat|in|is|not|and|or|of)\b|[<>]=?|==|!=/.test(src);
   if (node.type === 'decision' && !branchy) {
     out.push({ sev: 'warning', line: 1, msg: 'This is a Decision, but the code contains no condition or comparison.' });
   }
