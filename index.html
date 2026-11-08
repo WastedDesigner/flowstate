@@ -7,7 +7,7 @@
 <title>FlowState — Flowchart Editor</title>
 <meta name="description" content="A fast, friendly flowchart editor that runs in your browser: templates, swimlanes, Mermaid, code to flowchart and live logic checks.">
 <link rel="stylesheet" href="css/app.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23c8ff00'/%3E%3Cpath d='M9 8h14M16 8v6M8 14h16v5H8zM16 19v5' stroke='%23060606' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2214%22 fill=%22%23c8ff00%22/%3E%3Cpath d=%22M20 51V16h22M20 33h18%22 stroke=%22%23060606%22 stroke-width=%227%22 fill=%22none%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/%3E%3Cpath d=%22M40 8l12 8-12 8z%22 fill=%22%23060606%22/%3E%3C/svg%3E">
 </head>
 <body>
 <a class="skiplink" href="#canvas">Skip to canvas</a>
@@ -15,7 +15,7 @@
 <header class="topbar">
   <button class="btn icon ghost" id="btnMenu" title="Menu" aria-label="Menu" aria-haspopup="menu"></button>
   <div class="brand" title="FlowState">
-    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><rect width="32" height="32" rx="8" class="brand-bg"/><path d="M9 8h14M16 8v6M8 14h16v5H8zM16 19v5" class="brand-fg" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>
+    <svg viewBox="0 0 64 64" width="28" height="28" aria-hidden="true"><rect width="64" height="64" rx="14" class="brand-bg"/><path d="M20 51V16h22M20 33h18" class="brand-fg" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M40 8l12 8-12 8z" class="brand-ink"/></svg>
     <span>FlowState</span>
   </div>
   <label class="sr" for="projName">Project name</label>
@@ -134,7 +134,7 @@
 <div id="modals"></div>
 <div id="toasts" class="toasts" aria-live="polite"></div>
 <div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
-<input type="file" id="filePicker" accept="application/json,.json" class="sr">
+<input type="file" id="filePicker" accept="application/json,.json,image/png,.png,image/svg+xml,.svg" class="sr">
 
 <script type="module" src="js/app.js"></script>
 </body>

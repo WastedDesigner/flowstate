@@ -36,7 +36,7 @@ class App {
     this.find = { q: '', ids: [], i: 0 };
     this.clip = null;
     this.pasteN = 0;
-    this.exportOpts = { format: 'png', scale: 2, background: 'theme', padding: 32, quality: 0.92, grid: false };
+    this.exportOpts = { ...this.exportDefaults(), ...(this.store.ui().export || {}) };
     this.revalidate = debounce(() => this.runValidation(), 170);
 
     this.wireIcons();
@@ -206,7 +206,7 @@ class App {
     window.addEventListener('dragover', (e) => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault(); });
     window.addEventListener('drop', (e) => {
       const f = e.dataTransfer?.files?.[0];
-      if (f && /\.json$/i.test(f.name)) { e.preventDefault(); this.importFile(f); }
+      if (f && /\.(json|png|svg)$/i.test(f.name)) { e.preventDefault(); this.importFile(f); }
     });
   }
 
@@ -219,7 +219,7 @@ class App {
       { label: 'Code to flowchart', icon: 'code', onClick: () => this.openCodeToChart() },
       { label: 'Mermaid import / export', icon: 'graph', onClick: () => this.openMermaid() },
       { sep: true },
-      { label: 'Open a backup (.json)', icon: 'upload', onClick: () => this.pickImport() },
+      { label: 'Open a backup (.json, .png, .svg)', icon: 'upload', onClick: () => this.pickImport() },
       { label: 'Back up this chart', icon: 'download', hint: 'Ctrl S', onClick: () => this.backupJson() },
       { label: 'Back up all projects', icon: 'download', onClick: () => this.backupAll() },
       { sep: true },
@@ -1195,8 +1195,13 @@ class App {
   async importFile(file) {
     if (file.size > 40 * 1024 * 1024) { toast('That file is too large to be a FlowState backup.', 'err', 5000); return; }
     let text;
-    try { text = await file.text(); }
-    catch { toast('The file could not be read.', 'err'); return; }
+    if (/\.(png|svg)$/i.test(file.name) || /^image\//.test(file.type)) {
+      text = await EX.readEmbedded(file);
+      if (!text) { toast('That image has no FlowState diagram inside. Export with "Include a copy of my diagram" ticked to make one.', 'warn', 6000); return; }
+    } else {
+      try { text = await file.text(); }
+      catch { toast('The file could not be read.', 'err'); return; }
+    }
     let obj = null;
     try { obj = JSON.parse(text); } catch {}
     if (obj?.kind === 'flowstate.bundle' && Array.isArray(obj.docs)) {
@@ -1243,83 +1248,130 @@ class App {
   }
 
   /* ================= export ================= */
+  exportDefaults() {
+    return {
+      format: 'png', name: '', selectionOnly: false, theme: 'same', zoom: 100, dpi: 96, padding: 32,
+      transparent: false, bgMode: 'theme', bgColor: '#ffffff', shadow: false, grid: false, embed: true,
+      quality: 0.92, page: 'fit', orientation: 'auto',
+    };
+  }
   openExport() {
     if (!this.store.doc.nodes.length) { toast('There is nothing to export yet.', 'warn'); return; }
-    const o = this.exportOpts;
+    const o = { ...this.exportDefaults(), ...this.exportOpts, selectionOnly: false, name: '' };
+    const hasSel = this.store.selNodes.size > 0;
     const body = h('div', {});
     body.innerHTML = `
-      <div class="row"><label for="xFmt">Format</label><select id="xFmt" class="grow">
-        <option value="png">PNG — lossless, transparent background possible</option>
-        <option value="jpg">JPG — smaller, always opaque</option>
-        <option value="svg">SVG — vector, stays sharp at any size</option>
-      </select></div>
-      <div class="row" id="rScale"><label for="xScale">Resolution</label><select id="xScale" class="grow">
-        <option value="1">1× — screen size</option><option value="2">2× — retina (recommended)</option>
-        <option value="3">3×</option><option value="4">4× — print</option>
-      </select></div>
-      <div class="row"><label for="xBg">Background</label><select id="xBg" class="grow">
-        <option value="theme">Match the theme</option><option value="white">White</option><option value="transparent">Transparent</option>
-      </select></div>
-      <div class="row"><label for="xPad">Margin</label><input type="number" id="xPad" class="grow" min="0" max="200" value="${o.padding}"> <span class="muted">px</span></div>
-      <div class="row" id="rQual"><label for="xQ">Quality</label><input type="range" id="xQ" min="0.5" max="1" step="0.02" value="${o.quality}"><span class="muted" id="xQv">${Math.round(o.quality * 100)}%</span></div>
-      <div class="row"><label for="xGrid">Include grid</label><input type="checkbox" id="xGrid" style="width:auto"></div>
+      <div class="xgrid">
+        <div class="row"><label for="xName">File name</label><input type="text" id="xName" class="grow" placeholder="${esc(this.store.doc.name || 'flowchart')}"></div>
+        <div class="row"><label for="xFmt">Format</label><select id="xFmt" class="grow">
+          <option value="png">PNG</option><option value="jpg">JPEG</option><option value="svg">SVG</option><option value="pdf">PDF</option>
+        </select></div>
+        <div class="row"><label for="xSel">Size</label><select id="xSel" class="grow"><option value="0">Whole diagram</option><option value="1" ${hasSel ? '' : 'disabled'}>Selection only${hasSel ? '' : ' (select steps first)'}</option></select></div>
+        <div class="row"><label for="xTheme">Theme</label><select id="xTheme" class="grow"><option value="same">Same as the chart</option>${THEME_KEYS.map((k) => `<option value="${k}">${esc(THEMES[k].label)}</option>`).join('')}</select></div>
+        <div class="row" data-for="raster"><label for="xZoom">Zoom</label><input type="number" id="xZoom" class="grow" min="5" max="800" step="5"><span class="muted">%</span></div>
+        <div class="row" data-for="raster"><label for="xW">Width</label><input type="number" id="xW" class="grow" min="1"><span class="muted">px</span></div>
+        <div class="row" data-for="raster"><label for="xH">Height</label><input type="number" id="xH" class="grow" min="1"><span class="muted">px</span></div>
+        <div class="row" data-for="raster"><label for="xDpi">DPI</label><select id="xDpi" class="grow">${EX.DPIS.map((d) => `<option value="${d}">${d}${d === 96 ? ' (screen)' : d === 300 ? ' (print)' : ''}</option>`).join('')}</select></div>
+        <div class="row"><label for="xPad">Border</label><input type="number" id="xPad" class="grow" min="0" max="400"><span class="muted">px</span></div>
+        <div class="row" data-for="alpha"><label for="xTrans">Transparent</label><input type="checkbox" id="xTrans" style="width:auto"></div>
+        <div class="row"><label for="xBgMode">Background</label><select id="xBgMode" class="grow"><option value="theme">Chart theme</option><option value="white">White</option><option value="custom">Custom colour</option></select><input type="color" id="xBgColor"></div>
+        <div class="row" data-for="jpgpdf"><label for="xQ">Quality</label><input type="range" id="xQ" min="0.5" max="1" step="0.02"><span class="muted" id="xQv"></span></div>
+        <div class="row" data-for="pdf"><label for="xPage">Page</label><select id="xPage" class="grow">${Object.entries(EX.PAGES).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select></div>
+        <div class="row" data-for="pdf"><label for="xOr">Orientation</label><select id="xOr" class="grow"><option value="auto">Automatic</option><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></div>
+      </div>
+      <div class="checks">
+        <label class="checkline"><input type="checkbox" id="xShadow"> Shadow</label>
+        <label class="checkline"><input type="checkbox" id="xGrid"> Grid</label>
+        <label class="checkline" data-for="embed" title="Adds the editable diagram inside the image, so you can open it again with Open a backup."><input type="checkbox" id="xEmbed"> Include a copy of my diagram</label>
+      </div>
       <p class="muted" id="xInfo" style="font-size:12px;margin:8px 0 0"></p>
-      <div class="preview-box" id="xPrev" style="margin-top:12px"><span class="muted">Preview appears here</span></div>
-      <p class="muted" style="font-size:11.5px;margin-bottom:0">Fonts are referenced by name, not embedded. PNG and JPG are rendered from the vector drawing, so they stay crisp.</p>`;
+      <div class="preview-box" id="xPrev" style="margin-top:10px"><span class="muted">Preview appears here</span></div>
+      <p class="muted" style="font-size:11.5px;margin-bottom:0">Fonts are referenced by name, not embedded. PNG, JPEG and PDF are drawn from the vector chart, so they stay crisp. PDF is one page and uses at least 2× zoom.</p>`;
     this.openModal({
       title: 'Export', wide: true, body,
       actions: [
-        { label: 'Preview', onClick: () => this.exportPreview(body) },
         { label: 'Cancel', onClick: () => this.closeModal() },
+        { label: 'Copy image', onClick: () => this.copyExport(body) },
         { label: 'Download', primary: true, onClick: () => this.doExport(body) },
       ],
-      onMount: (m, bodyEl) => {
-        bodyEl.querySelector('#xFmt').value = o.format === 'pdf' ? 'png' : o.format;
-        bodyEl.querySelector('#xScale').value = String(o.scale);
-        bodyEl.querySelector('#xBg').value = o.background;
-        bodyEl.querySelector('#xGrid').checked = !!o.grid;
-        const sync = () => {
-          const f = bodyEl.querySelector('#xFmt').value;
-          bodyEl.querySelector('#rScale').style.display = f === 'svg' ? 'none' : '';
-          bodyEl.querySelector('#rQual').style.display = f === 'jpg' ? '' : 'none';
-          const bgSel = bodyEl.querySelector('#xBg');
-          const noAlpha = f === 'jpg';
-          bgSel.querySelector('[value=transparent]').disabled = noAlpha;
-          if (noAlpha && bgSel.value === 'transparent') bgSel.value = 'white';
-          this.readExportOpts(bodyEl);
-          const bb = docBounds(this.store.doc, this.exportOpts.padding);
-          const px = f === 'svg' ? `${Math.round(bb.w)} × ${Math.round(bb.h)} units` : `${Math.round(bb.w * this.exportOpts.scale)} × ${Math.round(bb.h * this.exportOpts.scale)} pixels`;
-          bodyEl.querySelector('#xInfo').textContent = `Output: ${px}${noAlpha ? ' · transparency is not available in JPG' : ''}`;
+      onMount: (m, el) => {
+        const q = (id) => el.querySelector('#' + id);
+        q('xFmt').value = o.format; q('xTheme').value = o.theme; q('xZoom').value = o.zoom; q('xDpi').value = String(o.dpi);
+        q('xPad').value = o.padding; q('xTrans').checked = o.transparent; q('xBgMode').value = o.bgMode; q('xBgColor').value = o.bgColor;
+        q('xQ').value = o.quality; q('xPage').value = o.page; q('xOr').value = o.orientation;
+        q('xShadow').checked = o.shadow; q('xGrid').checked = o.grid; q('xEmbed').checked = o.embed;
+        let bounds = { w: 1, h: 1 };
+        const showFor = (f) => {
+          const raster = f !== 'svg';
+          el.querySelectorAll('[data-for]').forEach((r) => {
+            const k = r.dataset.for;
+            r.style.display = (k === 'raster' && !raster) || (k === 'alpha' && (f === 'jpg' || f === 'pdf')) || (k === 'jpgpdf' && f !== 'jpg' && f !== 'pdf')
+              || (k === 'pdf' && f !== 'pdf') || (k === 'embed' && (f === 'jpg' || f === 'pdf')) ? 'none' : '';
+          });
+          q('xBgColor').style.display = q('xBgMode').value === 'custom' ? '' : 'none';
         };
-        bodyEl.addEventListener('change', sync);
-        bodyEl.addEventListener('input', (e) => {
-          if (e.target.id === 'xQ') bodyEl.querySelector('#xQv').textContent = Math.round(e.target.value * 100) + '%';
-          sync();
-        });
-        sync();
+        const sizeFrom = (src) => {
+          const zoom = clamp(Number(q('xZoom').value) || 100, 5, 800);
+          if (src === 'w') q('xZoom').value = Math.round(clamp((Number(q('xW').value) || 1) / bounds.w * 100, 5, 800));
+          else if (src === 'h') q('xZoom').value = Math.round(clamp((Number(q('xH').value) || 1) / bounds.h * 100, 5, 800));
+          else if (src === 'dpi') q('xZoom').value = Math.round(Number(q('xDpi').value) / 96 * 100);
+          const z = clamp(Number(q('xZoom').value) || zoom, 5, 800);
+          if (src !== 'w') q('xW').value = Math.round(bounds.w * z / 100);
+          if (src !== 'h') q('xH').value = Math.round(bounds.h * z / 100);
+        };
+        const refresh = (src) => {
+          const sel = q('xSel').value === '1' && hasSel ? this.store.selNodes : null;
+          bounds = docBounds(EX.exportDoc(this.store.doc, { selection: sel }), clamp(Number(q('xPad').value) || 0, 0, 400));
+          showFor(q('xFmt').value);
+          sizeFrom(src);
+          q('xQv').textContent = Math.round(q('xQ').value * 100) + '%';
+          const f = q('xFmt').value;
+          q('xInfo').textContent = f === 'svg' ? `Output: ${Math.round(bounds.w)} × ${Math.round(bounds.h)} units (vector)`
+            : `Output: ${q('xW').value} × ${q('xH').value} pixels${f === 'pdf' ? ' · PDF page set below' : ''}`;
+          this.readExportOpts(el);
+          this.queuePreview(el);
+        };
+        el.addEventListener('input', (e) => refresh(e.target.id === 'xW' ? 'w' : e.target.id === 'xH' ? 'h' : e.target.id === 'xDpi' ? 'dpi' : e.target.id === 'xZoom' ? 'zoom' : ''));
+        el.addEventListener('change', (e) => refresh(e.target.id === 'xDpi' ? 'dpi' : ''));
+        refresh('');
       },
     });
   }
-  readExportOpts(bodyEl) {
-    const g = (id) => bodyEl.querySelector('#' + id);
-    this.exportOpts = {
-      format: g('xFmt').value,
-      scale: Number(g('xScale').value) || 2,
-      background: g('xBg').value,
-      padding: clamp(Number(g('xPad').value) || 0, 0, 200),
-      quality: Number(g('xQ').value) || 0.92,
-      grid: g('xGrid').checked,
+  readExportOpts(el) {
+    const q = (id) => el.querySelector('#' + id);
+    const mode = q('xBgMode').value;
+    const o = {
+      format: q('xFmt').value, name: q('xName').value.trim(), selectionOnly: q('xSel').value === '1',
+      theme: q('xTheme').value, zoom: clamp(Number(q('xZoom').value) || 100, 5, 800), dpi: Number(q('xDpi').value) || 96,
+      padding: clamp(Number(q('xPad').value) || 0, 0, 400), transparent: q('xTrans').checked, bgMode: mode, bgColor: q('xBgColor').value,
+      shadow: q('xShadow').checked, grid: q('xGrid').checked, embed: q('xEmbed').checked,
+      quality: Number(q('xQ').value) || 0.92, page: q('xPage').value, orientation: q('xOr').value,
     };
-    return this.exportOpts;
+    this.exportOpts = o;
+    return o;
   }
-  async exportPreview(bodyEl) {
-    const o = this.readExportOpts(bodyEl);
-    const box = bodyEl.querySelector('#xPrev');
-    box.innerHTML = '<span class="muted">Rendering…</span>';
+  /** Options in the shape the exporters take. */
+  exportArgs(o) {
+    const sel = o.selectionOnly && this.store.selNodes.size ? this.store.selNodes : null;
+    const d = EX.exportDoc(this.store.doc, { selection: sel, theme: o.theme === 'same' ? null : o.theme });
+    return [d, {
+      format: o.format, filename: o.name, scale: o.zoom / 100, dpi: o.dpi, padding: o.padding, transparent: o.transparent,
+      bgColor: o.bgMode === 'white' ? '#ffffff' : o.bgMode === 'custom' ? o.bgColor : null,
+      shadow: o.shadow, grid: o.grid, embed: o.embed, quality: o.quality, page: o.page, orientation: o.orientation,
+    }];
+  }
+  queuePreview(el) {
+    clearTimeout(this._prevT);
+    this._prevT = setTimeout(() => this.exportPreview(el), 280);
+  }
+  async exportPreview(el) {
+    const box = el.querySelector('#xPrev');
+    if (!box || !box.isConnected) return;
+    const [d, a] = this.exportArgs(this.readExportOpts(el));
     try {
-      const { markup, bounds } = EX.buildSvg(this.renderer, this.store.doc, { ...o, background: o.format === 'jpg' ? (o.background === 'transparent' ? 'white' : o.background) : o.background });
-      const scale = Math.min(1.5, 420 / Math.max(bounds.w, 1));
-      const canvas = await EX.toCanvas(markup, bounds, { scale, flatten: null });
+      const flat = a.format === 'jpg' || a.format === 'pdf';
+      const { markup, bounds, bg } = EX.buildSvg(d, { ...a, embed: false, transparent: flat ? false : a.transparent });
+      const canvas = await EX.toCanvas(markup, bounds, { scale: Math.min(1.5, 520 / Math.max(bounds.w, 1)), flatten: flat ? (bg || '#ffffff') : null });
       box.innerHTML = '';
       const img = h('img', { alt: 'Export preview' });
       img.src = canvas.toDataURL('image/png');
@@ -1328,15 +1380,22 @@ class App {
       box.innerHTML = `<span class="muted">Preview failed: ${esc(err.message)}</span>`;
     }
   }
-  async doExport(bodyEl) {
-    const o = this.readExportOpts(bodyEl);
+  async doExport(el) {
+    const o = this.readExportOpts(el);
+    const [d, a] = this.exportArgs(o);
     try {
-      const r = o.format === 'svg' ? await EX.exportSvg(this.renderer, this.store.doc, o) : await EX.exportRaster(this.renderer, this.store.doc, o);
+      const r = o.format === 'svg' ? await EX.exportSvg(d, a) : o.format === 'pdf' ? await EX.exportPdf(d, a) : await EX.exportRaster(d, a);
+      this.store.setUi({ export: { ...o, name: '', selectionOnly: false } });
       this.closeModal();
-      toast(`Exported ${o.format.toUpperCase()} (${fmtBytes(r.bytes)}${r.w ? `, ${r.w}×${r.h} px` : ''}).`, 'ok', 4200);
+      toast(`Exported ${o.format.toUpperCase()} (${fmtBytes(r.bytes)}${r.w ? `, ${r.w}×${r.h} px` : ''}${r.page ? `, page ${r.page}` : ''}).`, 'ok', 4200);
     } catch (err) {
       toast('Export failed: ' + err.message, 'err', 6000);
     }
+  }
+  async copyExport(el) {
+    const [d, a] = this.exportArgs(this.readExportOpts(el));
+    try { await EX.copyPng(d, a); toast('Image copied. Paste it into a document or chat.', 'ok', 3000); }
+    catch (err) { toast('Could not copy the image: ' + (err.message || 'clipboard blocked') + '. Use Download instead.', 'err', 5000); }
   }
 }
 

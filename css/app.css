@@ -77,7 +77,7 @@ button,input,select,textarea{font:inherit;color:inherit}
   background:var(--bg2);border-bottom:1px solid var(--line);flex:0 0 auto;z-index:30;
 }
 .brand{display:none;align-items:center;gap:8px;font-weight:700;letter-spacing:-.01em}
-.brand-bg{fill:var(--accent)} .brand-fg{stroke:var(--accent-ink)}
+.brand-bg{fill:var(--accent)} .brand-fg{stroke:var(--accent-ink)} .brand-ink{fill:var(--accent-ink)}
 :root[data-theme="wasted"] .brand span{font-size:12.5px;letter-spacing:3px;text-transform:uppercase}
 .projname{
   background:transparent;border:1px solid transparent;border-radius:8px;padding:0 9px;min-height:38px;
@@ -459,3 +459,11 @@ kbd{background:var(--bg3);border:1px solid var(--line2);border-bottom-width:2px;
   .cx-sep{margin:6px 1px}
 }
 .sheet-open .ctxbar{display:none}
+
+.xgrid{display:grid;grid-template-columns:1fr;gap:0 18px}
+.xgrid .row{margin-bottom:8px}
+.xgrid input[type=color]{flex:0 0 38px}
+.checks{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:6px}
+.checkline{display:flex;align-items:center;gap:7px;color:var(--ink2);cursor:pointer;font-size:13px}
+.checkline input{width:auto}
+@media (min-width:760px){ .xgrid{grid-template-columns:1fr 1fr} }
