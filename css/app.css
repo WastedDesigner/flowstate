@@ -253,7 +253,10 @@ button,input,select,textarea{font:inherit;color:inherit}
 .tab{
   background:transparent;border:1px solid transparent;color:var(--ink2);min-height:36px;padding:0 11px;
   border-radius:8px;cursor:pointer;font-size:12.5px;text-transform:none;letter-spacing:0;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1;
 }
+.btn svg,.btn [data-icon]{display:block;flex:none}
+.pill{line-height:17px}
 .tab:hover{background:var(--bg3);color:var(--ink)}
 .tab.active{background:var(--bg3);border-color:var(--line2);color:var(--ink);font-weight:600}
 .pill{
