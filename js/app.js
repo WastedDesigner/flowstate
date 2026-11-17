@@ -222,6 +222,7 @@ class App {
       { label: 'Flowchart to code', icon: 'code', onClick: () => this.openChartToCode() },
       { label: 'Mermaid import / export', icon: 'graph', onClick: () => this.openMermaid() },
       { sep: true },
+      { label: 'Export', icon: 'download', hint: 'Ctrl E', onClick: () => this.openExport() },
       { label: 'Open a backup (.json, .png, .svg)', icon: 'upload', onClick: () => this.pickImport() },
       { label: 'Back up this chart', icon: 'download', hint: 'Ctrl S', onClick: () => this.backupJson() },
       { label: 'Back up all projects', icon: 'download', onClick: () => this.backupAll() },
