@@ -380,7 +380,7 @@ export class Interactions {
       } else {
         const from = nodeById(this.store.doc, fromId);
         const dist = from ? Math.hypot(p.x - (from.x + from.w / 2), p.y - (from.y + from.h / 2)) : 0;
-        if (dist > 60) this.app.connectToNew(fromId, p.x, p.y, this.linkFrom.port);
+        if (dist > 60) this.app.pickNewType(fromId, p.x, p.y, this.linkFrom.port, e.clientX, e.clientY);
       }
       this.linkFrom = null; this.linkTo = null;
       return;

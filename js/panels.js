@@ -157,12 +157,7 @@ function wire(app, pane) {
   const editEdges = (label, fn) => { st.commit(label, () => { for (const e of edges()) fn(e); }); };
   const q = (sel) => pane.querySelector(sel);
 
-  q('#pShape')?.addEventListener('change', (e) => editNodes('Change shape', (n) => {
-    n.type = e.target.value;
-    const def = SHAPES[n.type];
-    if (n.type === 'connector') { n.w = n.h = Math.min(n.w, def.size[0]); }
-    if (n.type === 'decision') n.h = Math.max(n.h, 96);
-  }));
+  q('#pShape')?.addEventListener('change', (e) => app.replaceShape(e.target.value));
   const txt = q('#pText');
   txt?.addEventListener('input', (e) => {
     const n = nodes()[0];

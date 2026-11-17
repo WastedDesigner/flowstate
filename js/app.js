@@ -1,6 +1,6 @@
 // FlowState — application wiring.
 import { h, esc, debounce, toast, announce, fmtBytes, fmtWhen, modKey, clamp, uid, clone, download } from './util.js';
-import { SHAPES, textBox } from './shapes.js';
+import { SHAPES, SHAPE_ORDER, textBox } from './shapes.js';
 import {
   newDoc, newNode, newEdge, nodeById, edgeById, docBounds, readFile, routeEdge,
   applyTheme, THEMES, THEME_KEYS, langLabel, DOC_VERSION, themeKey,
@@ -367,15 +367,32 @@ class App {
     this.store.select([], [created.id]);
     announce('Connected');
   }
-  connectToNew(fromId, x, y, port) {
+  replaceShape(type) {
+    this.store.commit('Change shape', () => {
+      for (const n of this.store.selectedNodes()) {
+        n.type = type;
+        if (type === 'connector') n.w = n.h = Math.min(n.w, SHAPES[type].size[0]);
+        if (type === 'decision') n.h = Math.max(n.h, 96);
+      }
+    });
+  }
+  /** Arrow dropped on empty canvas: ask which kind of step to create (Esc / click away cancels). */
+  pickNewType(fromId, x, y, port, clientX, clientY) {
+    const items = [{ heading: 'Add connected step' }, ...SHAPE_ORDER.filter((t) => t !== 'lane' && t !== 'note').map((t) => ({
+      label: SHAPES[t].label.replace('\n', ' '),
+      onClick: () => this.connectToNew(fromId, x, y, port, t),
+    }))];
+    openPopover({ x: clientX, y: clientY }, items);
+  }
+  connectToNew(fromId, x, y, port, type = 'process') {
     const from = nodeById(this.store.doc, fromId);
     if (!from) return;
-    const def = SHAPES.process;
+    const def = SHAPES[type];
     const g = this.store.doc.settings.snap ? this.store.doc.settings.gridSize : 1;
     const spot = freeSpot(this.store.doc, Math.round((x - def.size[0] / 2) / g) * g, Math.round((y - def.size[1] / 2) / g) * g, def.size[0], def.size[1]);
     let n, e;
     this.store.commit('Add connected step', (d) => {
-      n = newNode('process', spot.x, spot.y, d.settings, '');
+      n = newNode(type, spot.x, spot.y, d.settings, '');
       d.nodes.push(n);
       e = newEdge(fromId, n.id, d.settings);
       if (port && port !== 'auto') e.fromPort = port;
@@ -958,6 +975,7 @@ class App {
     );
     items.push({ label: 'Paste', icon: 'paste', hint: 'Ctrl V', onClick: () => this.pasteFromMenu() });
     if (this.store.selNodes.size > 1 || grouped) items.push({ label: grouped ? 'Ungroup' : 'Group', icon: grouped ? 'ungroup' : 'group', hint: 'Ctrl G', onClick: () => this.groupSelection(!grouped) });
+    if (hasNode) items.push({ label: 'Replace with…', icon: 'flip', onClick: () => openPopover({ x, y }, [{ heading: 'Replace with' }, ...SHAPE_ORDER.filter((t) => t !== 'lane' && t !== 'note').map((t) => ({ label: SHAPES[t].label.replace('\n', ' '), onClick: () => this.replaceShape(t) }))]) });
     if (hasNode) items.push({ label: 'Attach code', icon: 'code', onClick: () => this.setTab('code') });
     if (hasEdge) items.push({ label: 'Reverse direction', icon: 'flip', onClick: () => this.panelAction('flip') });
     items.push({ sep: true }, { label: 'Delete', icon: 'trash', hint: 'Del', danger: true, onClick: () => this.deleteSelection() });
