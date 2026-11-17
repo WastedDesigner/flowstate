@@ -1,6 +1,6 @@
 // Sample flowcharts. Each one is a real, checkable chart — not a placeholder.
 import { newDoc, newNode, newEdge } from './model.js';
-import { SHAPES } from './shapes.js';
+import { SHAPES, shapePath } from './shapes.js';
 
 function chart(spec, settings) {
   const doc = newDoc(spec.name);
@@ -371,6 +371,29 @@ export const TEMPLATES = [
     },
   },
 ];
+
+/** A new chart that already has Start → step → End, so there is something to edit straight away. */
+export function starterDoc(settings) {
+  return chart({
+    name: 'Untitled flowchart',
+    nodes: [['s', 'start', 200, 60, 'Start'], ['a', 'process', 200, 200, 'Do something'], ['e', 'end', 200, 340, 'End']],
+    edges: [['s', 'a'], ['a', 'e']],
+  }, settings);
+}
+
+/** Small SVG picture of a template (straight lines between steps; the real chart routes them properly). */
+export function templateThumb(spec) {
+  const pos = new Map();
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [key, type, cx, cy] of spec.nodes) {
+    const [w, h] = SHAPES[type].size;
+    pos.set(key, { type, cx, cy, w, h });
+    x0 = Math.min(x0, cx - w / 2); y0 = Math.min(y0, cy - h / 2); x1 = Math.max(x1, cx + w / 2); y1 = Math.max(y1, cy + h / 2);
+  }
+  const lines = spec.edges.map(([a, b]) => `<line x1="${pos.get(a).cx}" y1="${pos.get(a).cy}" x2="${pos.get(b).cx}" y2="${pos.get(b).cy}"/>`).join('');
+  const shapes = [...pos.values()].map((n) => `<path transform="translate(${n.cx - n.w / 2},${n.cy - n.h / 2})" d="${shapePath(n.type, n.w, n.h, 10)}"/>`).join('');
+  return `<svg viewBox="${x0 - 20} ${y0 - 20} ${x1 - x0 + 40} ${y1 - y0 + 40}" aria-hidden="true"><g class="tt-l">${lines}</g><g class="tt-s">${shapes}</g></svg>`;
+}
 
 export function buildTemplate(id, settings) {
   const t = TEMPLATES.find((x) => x.id === id);

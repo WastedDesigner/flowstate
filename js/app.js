@@ -1,6 +1,11 @@
 // FlowState — application wiring.
 import { h, esc, debounce, toast, announce, fmtBytes, fmtWhen, modKey, clamp, uid, clone, download } from './util.js';
-import { SHAPES, SHAPE_ORDER, textBox } from './shapes.js';
+import { SHAPES, SHAPE_ORDER, SHAPE_HELP, textBox, thumbSVG } from './shapes.js';
+
+/** Popover items for picking a step type, each with a small picture of its shape. */
+const shapeMenu = (heading, pick) => [{ heading }, ...SHAPE_ORDER.filter((t) => t !== 'lane' && t !== 'note').map((t) => ({
+  label: SHAPES[t].label.replace('\n', ' '), sub: SHAPE_HELP[t], iconHtml: `<span class="pi-shape">${thumbSVG(t)}</span>`, onClick: () => pick(t),
+}))];
 import {
   newDoc, newNode, newEdge, nodeById, edgeById, docBounds, readFile, routeEdge,
   applyTheme, THEMES, THEME_KEYS, langLabel, DOC_VERSION, themeKey,
@@ -11,7 +16,7 @@ import { Interactions, isTyping } from './interact.js';
 import { runChecks, issueMaps } from './validate.js';
 import { lintDoc } from './lint.js';
 import { freeSpot, autoLayout } from './layout.js';
-import { TEMPLATES, buildTemplate } from './templates.js';
+import { TEMPLATES, buildTemplate, starterDoc, templateThumb } from './templates.js';
 import { codeToDoc, fitNode, guessLang, CODE_LANGS } from './codeflow.js';
 import { toMermaid, fromMermaid } from './mermaid.js';
 import { docToCode, OUT_LANGS, OUT_EXT } from './chartcode.js';
@@ -68,9 +73,7 @@ class App {
     const d = last && this.store.loadLocal(last);
     if (d) { this.store.setDoc(d); loaded = true; }
     if (!loaded) {
-      const fresh = newDoc();
-      fresh.settings.theme = themeKey(this.store.ui().theme);
-      this.store.setDoc(fresh);
+      this.store.setDoc(starterDoc({ theme: themeKey(this.store.ui().theme) }));
     }
     this.syncTheme();
     this.renderer.render();
@@ -178,6 +181,7 @@ class App {
     $('crProjects').onclick = () => this.openProjects();
     $('crToCode').onclick = () => this.openChartToCode();
     $('esTemplate').onclick = () => this.openTemplatePicker();
+    $('esStep').onclick = () => this.addNodeAt('start', ...this.viewCenter(), true, true);
 
     document.querySelectorAll('.btn.tool').forEach((b) => b.onclick = () => { this.ia.setTool(b.dataset.tool); this.clearArmed?.(); });
     this.onToolChange = (t) => document.querySelectorAll('.btn.tool').forEach((b) => b.classList.toggle('active', b.dataset.tool === t));
@@ -214,7 +218,7 @@ class App {
 
   menuItems() {
     return [
-      { label: 'New blank chart', icon: 'plus', onClick: () => this.newBlank() },
+      { label: 'New chart', icon: 'plus', onClick: () => this.newBlank() },
       { label: 'My projects', icon: 'folder', hint: 'Ctrl O', onClick: () => this.openProjects() },
       { label: 'Templates', icon: 'templates', onClick: () => this.openTemplatePicker() },
       { sep: true },
@@ -379,11 +383,7 @@ class App {
   }
   /** Arrow dropped on empty canvas: ask which kind of step to create (Esc / click away cancels). */
   pickNewType(fromId, x, y, port, clientX, clientY) {
-    const items = [{ heading: 'Add connected step' }, ...SHAPE_ORDER.filter((t) => t !== 'lane' && t !== 'note').map((t) => ({
-      label: SHAPES[t].label.replace('\n', ' '),
-      onClick: () => this.connectToNew(fromId, x, y, port, t),
-    }))];
-    openPopover({ x: clientX, y: clientY }, items);
+    openPopover({ x: clientX, y: clientY }, shapeMenu('Add connected step', (t) => this.connectToNew(fromId, x, y, port, t)));
   }
   connectToNew(fromId, x, y, port, type = 'process') {
     const from = nodeById(this.store.doc, fromId);
@@ -976,7 +976,7 @@ class App {
     );
     items.push({ label: 'Paste', icon: 'paste', hint: 'Ctrl V', onClick: () => this.pasteFromMenu() });
     if (this.store.selNodes.size > 1 || grouped) items.push({ label: grouped ? 'Ungroup' : 'Group', icon: grouped ? 'ungroup' : 'group', hint: 'Ctrl G', onClick: () => this.groupSelection(!grouped) });
-    if (hasNode) items.push({ label: 'Replace with…', icon: 'flip', onClick: () => openPopover({ x, y }, [{ heading: 'Replace with' }, ...SHAPE_ORDER.filter((t) => t !== 'lane' && t !== 'note').map((t) => ({ label: SHAPES[t].label.replace('\n', ' '), onClick: () => this.replaceShape(t) }))]) });
+    if (hasNode) items.push({ label: 'Replace with…', icon: 'flip', onClick: () => openPopover({ x, y }, shapeMenu('Replace with', (t) => this.replaceShape(t))) });
     if (hasNode) items.push({ label: 'Attach code', icon: 'code', onClick: () => this.setTab('code') });
     if (hasEdge) items.push({ label: 'Reverse direction', icon: 'flip', onClick: () => this.panelAction('flip') });
     items.push({ sep: true }, { label: 'Delete', icon: 'trash', hint: 'Del', danger: true, onClick: () => this.deleteSelection() });
@@ -1030,7 +1030,7 @@ class App {
   openTemplatePicker() {
     this.openModal({
       title: 'Start from a template', wide: true,
-      body: `<div class="grid2">${TEMPLATES.map((t) => `<button class="tpl" data-t="${t.id}"><b>${esc(t.name)}</b><span>${esc(t.desc)}</span></button>`).join('')}</div>
+      body: `<div class="grid2">${TEMPLATES.map((t) => `<button class="tpl" data-t="${t.id}"><div class="tpl-thumb">${templateThumb(t.spec)}</div><b>${esc(t.name)}</b><span>${esc(t.desc)}</span></button>`).join('')}</div>
         <p class="muted" style="margin-top:12px;font-size:12px">A template opens as a new project, so your current chart is left untouched.</p>`,
       actions: [{ label: 'Cancel', onClick: () => this.closeModal() }],
       onMount: (m) => m.querySelectorAll('[data-t]').forEach((b) => b.onclick = () => { this.closeModal(); this.openTemplate(b.dataset.t); }),
@@ -1173,7 +1173,7 @@ class App {
     const body = h('div', {});
     body.innerHTML = `
       <div class="seg" style="margin-bottom:12px">
-        <button class="btn primary" data-new>New blank chart</button>
+        <button class="btn primary" data-new>New chart</button>
         <button class="btn" data-tpl>From a template</button>
         <button class="btn" data-imp>Open a backup</button>
         <button class="btn" data-all>Back up all</button>
@@ -1217,13 +1217,11 @@ class App {
     });
   }
   newProject() {
-    const d = newDoc();
-    d.settings = { ...this.store.doc.settings };
+    const d = starterDoc(this.store.doc.settings);
     this.store.setDoc(d);
     this.renderer.nodeSig.clear();
     this.renderer.render();
-    this.store.viewport = { x: 0, y: 0, k: 1 };
-    this.renderer.applyViewport();
+    this.renderer.fit(docBounds(d, 40));
     this.afterChange();
     this.renderAllPanes();
   }
@@ -1233,7 +1231,7 @@ class App {
     if (!isDesktop()) { $('leftRail').classList.add('collapsed'); this.updateDock(); }
     const name = $('projName');
     name.focus(); name.select();
-    toast('Blank chart ready. Name it, then double-tap the canvas to add a step.', 'ok', 3200);
+    toast('New chart ready. Name it, then edit the steps or double-tap the canvas to add more.', 'ok', 3200);
   }
 
   /* ================= backup / import ================= */
@@ -1319,7 +1317,7 @@ class App {
     return {
       format: 'png', name: '', selectionOnly: false, theme: 'same', zoom: 100, dpi: 96, padding: 32,
       transparent: false, bgMode: 'theme', bgColor: '#ffffff', shadow: false, grid: false, embed: true,
-      quality: 0.92, page: 'fit', orientation: 'auto',
+      quality: 0.92, page: 'fit', orientation: 'auto', preset: 'fit', cw: 1920, ch: 1080,
     };
   }
   openExport() {
@@ -1335,7 +1333,8 @@ class App {
         </select></div>
         <div class="row"><label for="xSel">Size</label><select id="xSel" class="grow"><option value="0">Whole diagram</option><option value="1" ${hasSel ? '' : 'disabled'}>Selection only${hasSel ? '' : ' (select steps first)'}</option></select></div>
         <div class="row"><label for="xTheme">Theme</label><select id="xTheme" class="grow"><option value="same">Same as the chart</option>${THEME_KEYS.map((k) => `<option value="${k}">${esc(THEMES[k].label)}</option>`).join('')}</select></div>
-        <div class="row" data-for="raster"><label for="xZoom">Zoom</label><input type="number" id="xZoom" class="grow" min="5" max="800" step="5"><span class="muted">%</span></div>
+        <div class="row" data-for="img"><label for="xPreset">Canvas size</label><select id="xPreset" class="grow"><option value="fit">Fit to the diagram</option>${Object.entries(EX.SIZE_PRESETS).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}<option value="custom">Custom size…</option></select></div>
+        <div class="row" data-for="zoom"><label for="xZoom">Zoom</label><input type="number" id="xZoom" class="grow" min="5" max="800" step="5"><span class="muted">%</span></div>
         <div class="row" data-for="raster"><label for="xW">Width</label><input type="number" id="xW" class="grow" min="1"><span class="muted">px</span></div>
         <div class="row" data-for="raster"><label for="xH">Height</label><input type="number" id="xH" class="grow" min="1"><span class="muted">px</span></div>
         <div class="row" data-for="raster"><label for="xDpi">DPI</label><select id="xDpi" class="grow">${EX.DPIS.map((d) => `<option value="${d}">${d}${d === 96 ? ' (screen)' : d === 300 ? ' (print)' : ''}</option>`).join('')}</select></div>
@@ -1367,17 +1366,22 @@ class App {
         q('xPad').value = o.padding; q('xTrans').checked = o.transparent; q('xBgMode').value = o.bgMode; q('xBgColor').value = o.bgColor;
         q('xQ').value = o.quality; q('xPage').value = o.page; q('xOr').value = o.orientation;
         q('xShadow').checked = o.shadow; q('xGrid').checked = o.grid; q('xEmbed').checked = o.embed;
+        q('xPreset').value = o.preset; q('xW').value = o.cw; q('xH').value = o.ch;
         let bounds = { w: 1, h: 1 };
+        // An exact-pixel canvas applies to PNG and JPEG only; width/height then set the canvas, not the zoom.
+        const canvasOn = () => q('xPreset').value !== 'fit' && ['png', 'jpg'].includes(q('xFmt').value);
         const showFor = (f) => {
           const raster = f !== 'svg';
           el.querySelectorAll('[data-for]').forEach((r) => {
             const k = r.dataset.for;
-            r.style.display = (k === 'raster' && !raster) || (k === 'alpha' && (f === 'jpg' || f === 'pdf')) || (k === 'jpgpdf' && f !== 'jpg' && f !== 'pdf')
+            r.style.display = (k === 'raster' && !raster) || (k === 'zoom' && (!raster || canvasOn())) || (k === 'img' && f !== 'png' && f !== 'jpg')
+              || (k === 'alpha' && (f === 'jpg' || f === 'pdf')) || (k === 'jpgpdf' && f !== 'jpg' && f !== 'pdf')
               || (k === 'pdf' && f !== 'pdf') || (k === 'embed' && (f === 'jpg' || f === 'pdf')) ? 'none' : '';
           });
           q('xBgColor').style.display = q('xBgMode').value === 'custom' ? '' : 'none';
         };
         const sizeFrom = (src) => {
+          if (canvasOn()) return;
           const zoom = clamp(Number(q('xZoom').value) || 100, 5, 800);
           if (src === 'w') q('xZoom').value = Math.round(clamp((Number(q('xW').value) || 1) / bounds.w * 100, 5, 800));
           else if (src === 'h') q('xZoom').value = Math.round(clamp((Number(q('xH').value) || 1) / bounds.h * 100, 5, 800));
@@ -1394,12 +1398,20 @@ class App {
           q('xQv').textContent = Math.round(q('xQ').value * 100) + '%';
           const f = q('xFmt').value;
           q('xInfo').textContent = f === 'svg' ? `Output: ${Math.round(bounds.w)} × ${Math.round(bounds.h)} units (vector)`
-            : `Output: ${q('xW').value} × ${q('xH').value} pixels${f === 'pdf' ? ' · PDF page set below' : ''}`;
+            : canvasOn() ? `Output: ${q('xW').value} × ${q('xH').value} pixels, with the diagram fitted and centred`
+              : `Output: ${q('xW').value} × ${q('xH').value} pixels${f === 'pdf' ? ' · PDF page set below' : ''}`;
           this.readExportOpts(el);
           this.queuePreview(el);
         };
-        el.addEventListener('input', (e) => refresh(e.target.id === 'xW' ? 'w' : e.target.id === 'xH' ? 'h' : e.target.id === 'xDpi' ? 'dpi' : e.target.id === 'xZoom' ? 'zoom' : ''));
-        el.addEventListener('change', (e) => refresh(e.target.id === 'xDpi' ? 'dpi' : ''));
+        // Keep width/height in step with the canvas choice before the usual refresh.
+        const syncCanvas = (id) => {
+          const p = EX.SIZE_PRESETS[q('xPreset').value];
+          if (id === 'xPreset' && p) { q('xW').value = p.w; q('xH').value = p.h; }
+          else if (id === 'xFmt' && canvasOn()) { q('xW').value = this.exportOpts.cw; q('xH').value = this.exportOpts.ch; }
+          else if ((id === 'xW' || id === 'xH') && canvasOn()) q('xPreset').value = 'custom';
+        };
+        el.addEventListener('input', (e) => { syncCanvas(e.target.id); refresh(e.target.id === 'xW' ? 'w' : e.target.id === 'xH' ? 'h' : e.target.id === 'xDpi' ? 'dpi' : e.target.id === 'xZoom' ? 'zoom' : ''); });
+        el.addEventListener('change', (e) => { syncCanvas(e.target.id); refresh(e.target.id === 'xDpi' ? 'dpi' : ''); });
         refresh('');
       },
     });
@@ -1412,8 +1424,10 @@ class App {
       theme: q('xTheme').value, zoom: clamp(Number(q('xZoom').value) || 100, 5, 800), dpi: Number(q('xDpi').value) || 96,
       padding: clamp(Number(q('xPad').value) || 0, 0, 400), transparent: q('xTrans').checked, bgMode: mode, bgColor: q('xBgColor').value,
       shadow: q('xShadow').checked, grid: q('xGrid').checked, embed: q('xEmbed').checked,
-      quality: Number(q('xQ').value) || 0.92, page: q('xPage').value, orientation: q('xOr').value,
+      quality: Number(q('xQ').value) || 0.92, page: q('xPage').value, orientation: q('xOr').value, preset: q('xPreset').value,
+      cw: this.exportOpts.cw, ch: this.exportOpts.ch,
     };
+    if (o.preset !== 'fit' && (o.format === 'png' || o.format === 'jpg')) { o.cw = clamp(Number(q('xW').value) || o.cw, 16, 16000); o.ch = clamp(Number(q('xH').value) || o.ch, 16, 16000); }
     this.exportOpts = o;
     return o;
   }
@@ -1425,6 +1439,7 @@ class App {
       format: o.format, filename: o.name, scale: o.zoom / 100, dpi: o.dpi, padding: o.padding, transparent: o.transparent,
       bgColor: o.bgMode === 'white' ? '#ffffff' : o.bgMode === 'custom' ? o.bgColor : null,
       shadow: o.shadow, grid: o.grid, embed: o.embed, quality: o.quality, page: o.page, orientation: o.orientation,
+      canvas: o.preset !== 'fit' && (o.format === 'png' || o.format === 'jpg') ? { w: o.cw, h: o.ch } : null,
     }];
   }
   queuePreview(el) {

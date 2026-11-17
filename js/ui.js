@@ -28,7 +28,7 @@ export function openPopover(anchor, items, { width = 230 } = {}) {
     b.type = 'button';
     b.className = 'pop-item' + (it.danger ? ' danger' : '') + (it.checked ? ' on' : '');
     b.setAttribute('role', 'menuitem');
-    b.innerHTML = `<span class="pi-ic">${it.iconHtml || (it.icon ? icon(it.icon, 18) : '')}</span><span class="pi-label">${esc(it.label)}</span>${it.hint ? `<kbd>${esc(it.hint)}</kbd>` : ''}${it.checked ? `<span class="pi-check">${icon('checkmark', 16)}</span>` : ''}`;
+    b.innerHTML = `<span class="pi-ic">${it.iconHtml || (it.icon ? icon(it.icon, 18) : '')}</span><span class="pi-label">${esc(it.label)}${it.sub ? `<small class="pi-sub">${esc(it.sub)}</small>` : ''}</span>${it.hint ? `<kbd>${esc(it.hint)}</kbd>` : ''}${it.checked ? `<span class="pi-check">${icon('checkmark', 16)}</span>` : ''}`;
     b.onclick = () => { closePopover(); it.onClick?.(); };
     el.append(b);
   }

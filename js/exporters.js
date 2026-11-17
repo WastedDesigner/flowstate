@@ -14,6 +14,26 @@ export const PAGES = {
   letter: { label: 'US Letter (8.5 × 11 in)', w: 612, h: 792 },
 };
 export const DPIS = [72, 96, 150, 300, 600];
+/** Exact-pixel canvases for PNG/JPEG, in plain terms. The drawing is scaled to fit and centred. */
+export const SIZE_PRESETS = {
+  slide: { label: 'Slide (1920 × 1080)', w: 1920, h: 1080 },
+  document: { label: 'Document page, A4 portrait (2480 × 3508)', w: 2480, h: 3508 },
+  landscape: { label: 'Document page, A4 landscape (3508 × 2480)', w: 3508, h: 2480 },
+  letter: { label: 'Document page, US Letter (2550 × 3300)', w: 2550, h: 3300 },
+  square: { label: 'Social post, square (1080 × 1080)', w: 1080, h: 1080 },
+  portrait: { label: 'Social post, portrait (1080 × 1350)', w: 1080, h: 1350 },
+  story: { label: 'Story or phone screen (1080 × 1920)', w: 1080, h: 1920 },
+  link: { label: 'Link preview (1200 × 630)', w: 1200, h: 630 },
+  uhd: { label: '4K screen (3840 × 2160)', w: 3840, h: 2160 },
+};
+/** Grow bounds `b` to the aspect ratio of canvas `c` ({w,h}), keeping the drawing centred. */
+export function fitBounds(b, c) {
+  if (!c) return b;
+  const ar = c.w / c.h;
+  let { x, y, w, h } = b;
+  if (w / h < ar) { const nw = h * ar; x -= (nw - w) / 2; w = nw; } else { const nh = w / ar; y -= (nh - h) / 2; h = nh; }
+  return { x, y, w, h };
+}
 
 /** The document to draw: the selection only (if given) and/or restyled in another theme. */
 export function exportDoc(doc, { selection = null, theme = null } = {}) {
@@ -53,7 +73,7 @@ const unb64 = (s) => new TextDecoder().decode(Uint8Array.from(atob(s), (c) => c.
 export function buildSvg(d, opts = {}) {
   const renderer = scene(d);
   const pad = opts.padding ?? 32;
-  const b = docBounds(d, pad);
+  const b = fitBounds(docBounds(d, pad), opts.canvas);
   const svg = document.createElementNS(XMLNS, 'svg');
   svg.setAttribute('xmlns', XMLNS);
   svg.setAttribute('width', Math.max(1, Math.round(b.w)));
@@ -117,8 +137,8 @@ export function buildSvg(d, opts = {}) {
 /** Rasterise SVG markup to a canvas at `scale`. */
 export function toCanvas(markup, bounds, opts = {}) {
   const scale = opts.scale || 1;
-  const w = Math.max(1, Math.round(bounds.w * scale));
-  const h = Math.max(1, Math.round(bounds.h * scale));
+  const w = opts.size?.w || Math.max(1, Math.round(bounds.w * scale));
+  const h = opts.size?.h || Math.max(1, Math.round(bounds.h * scale));
   if (w * h > 72_000_000) {
     return Promise.reject(new Error(`That would be ${w} × ${h} pixels, which browsers cannot allocate. Lower the zoom or DPI.`));
   }
@@ -145,7 +165,7 @@ const opaque = (o) => o.format === 'jpg' || o.format === 'pdf';
 async function canvasFor(d, o) {
   const flat = opaque(o);
   const { markup, bounds, bg } = buildSvg(d, { ...o, transparent: flat ? false : o.transparent, embed: o.format === 'png' && o.embed });
-  const canvas = await toCanvas(markup, bounds, { scale: o.scale, flatten: flat ? (bg || '#ffffff') : null });
+  const canvas = await toCanvas(markup, bounds, { scale: o.scale, size: o.canvas, flatten: flat ? (bg || '#ffffff') : null });
   return { canvas, bounds, markup };
 }
 

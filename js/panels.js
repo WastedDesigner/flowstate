@@ -1,8 +1,8 @@
 // Left palette + right-hand Design / Code / Checks panes.
 import { esc, h } from './util.js';
-import { SHAPE_ORDER, SHAPES, thumbSVG } from './shapes.js';
+import { SHAPE_ORDER, SHAPES, SHAPE_HELP, thumbSVG } from './shapes.js';
 import { THEMES, THEME_KEYS, LANGS, FONTS, DASHES, ARROWS, langLabel } from './model.js';
-import { TEMPLATES } from './templates.js';
+import { TEMPLATES, templateThumb } from './templates.js';
 import { lintCode } from './lint.js';
 
 const FILLS = ['#c8ff00', '#000000', '#ffffff', '#f4f6fa', '#e3f7ec', '#fff6e2', '#fdeaea', '#eef2ff', '#f3ecff', '#1b2431', '#16253f', '#102b20', '#30161a', '#30260f', '#221a36', 'none'];
@@ -16,7 +16,7 @@ export function buildPalette(app) {
     const def = SHAPES[type];
     const b = h('button', {
       class: 'shape-btn', draggable: 'true', 'data-type': type, type: 'button',
-      title: `${def.label.replace('\n', ' ')} — drag onto the canvas or click then click the canvas`,
+      title: `${def.label.replace('\n', ' ')}: ${SHAPE_HELP[type]}. Drag onto the canvas, or click then click the canvas.`,
       html: thumbSVG(type) + '<span>' + esc(def.label.replace('\n', ' ')) + '</span>',
     });
     b.addEventListener('dragstart', (e) => {
@@ -43,7 +43,7 @@ export function buildTemplates(app) {
   for (const t of TEMPLATES) {
     host.append(h('button', {
       class: 'tpl', type: 'button', onclick: () => app.openTemplate(t.id),
-      html: `<b>${esc(t.name)}</b><span>${esc(t.desc)}</span>`,
+      html: `<div class="tpl-thumb">${templateThumb(t.spec)}</div><b>${esc(t.name)}</b><span>${esc(t.desc)}</span>`,
     }));
   }
 }

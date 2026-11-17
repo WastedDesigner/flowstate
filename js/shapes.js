@@ -19,7 +19,15 @@ export const SHAPES = {
   note:     { label: 'Note',      role: 'note',     size: [170, 72],  text: [.1, .1, .82, .8] },
   lane:     { label: 'Swimlane',  role: 'lane',     size: [640, 240], text: [.02, 0, .96, .14] },
 };
-export const SHAPE_ORDER = ['start', 'process', 'decision', 'io', 'end', 'subroutine', 'data', 'document', 'manual', 'delay', 'connector', 'note', 'lane'];
+/** One-line plain-English use of each shape, for tooltips and pick menus. */
+export const SHAPE_HELP = {
+  start: 'Where the flow begins', end: 'Where the flow stops', process: 'An action or task',
+  decision: 'A yes/no question that splits the flow', io: 'Asking for or showing information',
+  subroutine: 'A step that has its own flowchart', data: 'Stored data, like a database',
+  document: 'A document or report', manual: 'A step a person does by hand', delay: 'Waiting for something',
+  connector: 'A jump point linking far-apart parts', note: 'A comment on the chart', lane: 'A lane showing who does what',
+};
+export const SHAPE_ORDER =['start', 'process', 'decision', 'io', 'end', 'subroutine', 'data', 'document', 'manual', 'delay', 'connector', 'note', 'lane'];
 export const TERMINALS = new Set(['start', 'end']);
 
 /** SVG path data for a shape. */
